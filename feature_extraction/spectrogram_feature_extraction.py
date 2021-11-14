@@ -9,7 +9,6 @@ import argparse
 import torchaudio
 from tqdm import tqdm
 import torch
-import opensmile
 
 
 def mfcc(audio):
@@ -56,26 +55,16 @@ if __name__ == '__main__':
     # Argument parser
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')
-    parser.add_argument('--feature_len', default=128) # feature len
-    parser.add_argument('--feature_type', default='mel_spec') # mel spectrogram as the default
+    parser.add_argument('--feature_type', default='mel_spec')
     args = parser.parse_args()
-
-    feature_len = int(args.feature_len)
-    feature_type = args.feature_type
 
     # save feature file
     root_path = Path('/media/data/projects/speech-privacy')
-    create_folder(root_path.joinpath('feature'))
-    create_folder(root_path.joinpath('feature', feature_type))
-    save_feat_path = root_path.joinpath('feature', feature_type)
+    create_folder(root_path.joinpath('federated_feature'))
+    create_folder(root_path.joinpath('federated_feature', args.feature_type))
+    save_feat_path = root_path.joinpath('federated_feature', args.feature_type)
     
     audio_features = {}
-
-    smile = opensmile.Smile(feature_set=opensmile.FeatureSet.eGeMAPSv02,
-                            feature_level=opensmile.FeatureLevel.Functionals)
-
-    emobase_smile = opensmile.Smile(feature_set=opensmile.FeatureSet.emobase,
-                            feature_level=opensmile.FeatureLevel.Functionals)
 
     # msp-podcast
     if args.dataset == 'msp-podcast':
@@ -104,13 +93,6 @@ if __name__ == '__main__':
             audio = transform_model(audio)
         
             audio_features[file_name] = {}
-            if feature_type == 'mfcc':
-                audio_features[file_name]['mfcc'] = mfcc(audio)
-            else:
-                audio_features[file_name]['mel1'] = mel_spectrogram(audio, n_fft=800, feature_len=feature_len)
-                audio_features[file_name]['mel2'] = mel_spectrogram(audio, n_fft=1600, feature_len=feature_len)
-            audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-            audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
 
     # msp-improv
     elif args.dataset == 'msp-improv':
@@ -130,13 +112,10 @@ if __name__ == '__main__':
                 audio = transform_model(audio)
             
                 audio_features[file_name] = {}
-                if feature_type == 'mfcc':
-                    audio_features[file_name]['mfcc'] = mfcc(audio)
+                if args.feature_type == 'mfcc':
+                    audio_features[file_name]['data'] = mfcc(audio)
                 else:
-                    audio_features[file_name]['mel1'] = mel_spectrogram(audio, n_fft=800, feature_len=feature_len)
-                    audio_features[file_name]['mel2'] = mel_spectrogram(audio, n_fft=1600, feature_len=feature_len)
-                audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-                audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
+                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
                 audio_features[file_name]['session'] = session_id
                 
     # crema-d
@@ -154,13 +133,10 @@ if __name__ == '__main__':
             audio, sample_rate = torchaudio.load(str(file_path))
 
             audio_features[file_name] = {}
-            if feature_type == 'mfcc':
-                audio_features[file_name]['mfcc'] = mfcc(audio)
+            if args.feature_type == 'mfcc':
+                audio_features[file_name]['data'] = mfcc(audio)
             else:
-                audio_features[file_name]['mel1'] = mel_spectrogram(audio, n_fft=800, feature_len=feature_len)
-                audio_features[file_name]['mel2'] = mel_spectrogram(audio, n_fft=1600, feature_len=feature_len)
-            audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-            audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
+                audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
             
     # iemocap
     elif args.dataset == 'iemocap':
@@ -175,16 +151,13 @@ if __name__ == '__main__':
                 audio, sample_rate = torchaudio.load(str(file_path))
 
                 audio_features[file_name] = {}
-                if feature_type == 'mfcc':
-                    audio_features[file_name]['mfcc'] = mfcc(audio)
+                if args.feature_type == 'mfcc':
+                    audio_features[file_name]['data'] = mfcc(audio)
                 else:
-                    audio_features[file_name]['mel1'] = mel_spectrogram(audio, n_fft=800, feature_len=feature_len)
-                    audio_features[file_name]['mel2'] = mel_spectrogram(audio, n_fft=1600, feature_len=feature_len)
-                audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-                audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
+                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
                 
     create_folder(save_feat_path.joinpath(args.dataset))
-    save_path = str(save_feat_path.joinpath(args.dataset, 'data_'+str(feature_len)+'.pkl'))
+    save_path = str(save_feat_path.joinpath(args.dataset, 'data.pkl'))
     with open(save_path, 'wb') as handle:
         pickle.dump(audio_features, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

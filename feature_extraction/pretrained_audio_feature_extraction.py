@@ -2,39 +2,27 @@ from pathlib import Path
 import numpy as np
 import pickle
 import pandas as pd
-import python_speech_features as ps
 import pdb
 from moviepy.editor import *
 import argparse
 import torchaudio
 import torch
 from tqdm import tqdm
-import opensmile
-
-
-def feature_extraction(audio, n_fft=1024, feature_len=128):
-
-    window_size = n_fft
-    window_hop = 160
-    n_mels = feature_len
-    window_fn = torch.hann_window
-
-    audio_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=16000,
-        n_mels=n_mels,
-        n_fft=n_fft,
-        win_length=int(window_size),
-        hop_length=int(window_hop),
-        window_fn=window_fn,
-    )
-
-    audio_amp_to_db = torchaudio.transforms.AmplitudeToDB()
-    return audio_amp_to_db(audio_transform(audio).detach())
 
 
 def create_folder(folder):
-    if Path.exists(folder) is False:
-        Path.mkdir(folder)
+    if Path.exists(folder) is False: Path.mkdir(folder)
+
+
+def pretrained_feature(audio):
+    with torch.inference_mode():
+        features, _ = model.extract_features(audio)
+        
+    save_feature = []
+    for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
+    
+    del features
+    return save_feature
 
 
 if __name__ == '__main__':
@@ -42,31 +30,24 @@ if __name__ == '__main__':
     # Argument parser
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')
-    parser.add_argument('--feature_type', default='mel_spec')
+    parser.add_argument('--feature_type', default='wav2vec')
     args = parser.parse_args()
-
-    feature_type = args.feature_type
 
     # save feature file
     root_path = Path('/media/data/projects/speech-privacy')
-    create_folder(root_path.joinpath('feature'))
-    create_folder(root_path.joinpath('feature', feature_type))
-    save_feat_path = root_path.joinpath('feature', feature_type)
+    create_folder(root_path.joinpath('federated_feature'))
+    create_folder(root_path.joinpath('federated_feature', args.feature_type))
+    save_feat_path = root_path.joinpath('federated_feature', args.feature_type)
     
     audio_features = {}
-
-    smile = opensmile.Smile(feature_set=opensmile.FeatureSet.eGeMAPSv02,
-                            feature_level=opensmile.FeatureLevel.Functionals)
-
-    emobase_smile = opensmile.Smile(feature_set=opensmile.FeatureSet.emobase,
-                            feature_level=opensmile.FeatureLevel.Functionals)
 
     # Model related
     device = torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
-
-    bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
-    model = bundle.get_model().to(device)
+    
+    if args.feature_type == 'wav2vec':
+        bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
+        model = bundle.get_model().to(device)
 
     # msp-podcast
     if args.dataset == 'msp-podcast':
@@ -95,14 +76,7 @@ if __name__ == '__main__':
             audio = transform_model(audio)
         
             audio_features[file_name] = {}
-            if feature_type == 'mfcc':
-                audio_features[file_name]['mfcc'] = mfcc(audio)
-            else:
-                audio_features[file_name]['mel1'] = mel_spectrogram(audio, n_fft=800, feature_len=feature_len)
-                audio_features[file_name]['mel2'] = mel_spectrogram(audio, n_fft=1600, feature_len=feature_len)
-            audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-            audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
-
+            
     # msp-improv
     elif args.dataset == 'msp-improv':
         # data root folder
@@ -122,18 +96,11 @@ if __name__ == '__main__':
                 audio = audio.to(device)
             
                 audio_features[file_name] = {}
-                with torch.inference_mode():
-                    features, _ = model.extract_features(audio)
-                
-                save_feature = []
-                for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
-                audio_features[file_name][feature_type] = save_feature
-                
-                audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-                audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
+                save_feature = pretrained_feature(audio)
+                audio_features[file_name]['data'] = save_feature
                 audio_features[file_name]['session'] = session_id
-                del features
                 del save_feature
+
     # crema-d
     elif args.dataset == 'crema-d':
         # data root folder
@@ -150,16 +117,8 @@ if __name__ == '__main__':
             audio = audio.to(device)
 
             audio_features[file_name] = {}
-            with torch.inference_mode():
-                features, _ = model.extract_features(audio)
-            
-            save_feature = []
-            for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
-            audio_features[file_name][feature_type] = save_feature
-
-            audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-            audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
-            del features
+            save_feature = pretrained_feature(audio)
+            audio_features[file_name]['data'] = save_feature
             del save_feature
             
     # iemocap
@@ -176,16 +135,8 @@ if __name__ == '__main__':
                 audio = audio.to(device)
 
                 audio_features[file_name] = {}
-                with torch.inference_mode():
-                    features, _ = model.extract_features(audio)
-                    
-                save_feature = []
-                for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
-                audio_features[file_name][feature_type] = save_feature
-
-                audio_features[file_name]['gemaps'] = np.array(smile.process_file(str(file_path)))
-                audio_features[file_name]['emobase'] = np.array(emobase_smile.process_file(str(file_path)))
-                del features
+                save_feature = pretrained_feature(audio)
+                audio_features[file_name]['data'] = save_feature
                 del save_feature
 
     create_folder(save_feat_path.joinpath(args.dataset))
