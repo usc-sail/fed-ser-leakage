@@ -249,7 +249,7 @@ if __name__ == '__main__':
                                 if args.feature_type == 'wav2vec':
                                     save_data = np.array(data['data'])[:, 0, :].flatten()
                                 else:
-                                    save_data = np.array(data['data'])[0]
+                                    save_data = np.array(data['data'])[0].flatten()
                                 
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
