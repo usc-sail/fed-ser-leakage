@@ -1,1 +1,1 @@
-# fed-ser-leakage
+# Information leakage of SER application in Federated Learning
