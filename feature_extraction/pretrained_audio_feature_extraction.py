@@ -9,6 +9,13 @@ import torchaudio
 import torch
 from tqdm import tqdm
 
+sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
+sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
+
+
+from apc_model import APCModel
+from utils import RNNConfig
+
 
 def create_folder(folder):
     if Path.exists(folder) is False: Path.mkdir(folder)
@@ -48,6 +55,11 @@ if __name__ == '__main__':
     if args.feature_type == 'wav2vec':
         bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
         model = bundle.get_model().to(device)
+    elif args.feature_type == 'apc':
+        rnn_config = RNNConfig(input_size=80, hidden_size=512, num_layers=3, dropout=0.)
+        pretrained_apc = APCModel(mel_dim=80, prenet_config=None, rnn_config=rnn_config).cuda()
+        pretrained_weights_path =  os.path.join(os.path.abspath(os.path.curdir), '..', 'model', 'bs32-rhl3-rhs512-rd0-adam-res-ts3.pt')
+        pretrained_apc.load_state_dict(torch.load(pretrained_weights_path))
 
     # msp-podcast
     if args.dataset == 'msp-podcast':

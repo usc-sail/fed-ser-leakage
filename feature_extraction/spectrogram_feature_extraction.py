@@ -56,13 +56,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')
     parser.add_argument('--feature_type', default='mel_spec')
+    parser.add_argument('--feature_len', default=128)
     args = parser.parse_args()
 
     # save feature file
     root_path = Path('/media/data/projects/speech-privacy')
     create_folder(root_path.joinpath('federated_feature'))
     create_folder(root_path.joinpath('federated_feature', args.feature_type))
-    save_feat_path = root_path.joinpath('federated_feature', args.feature_type)
+    create_folder(root_path.joinpath('federated_feature', args.feature_type, args.feature_len))
+    save_feat_path = root_path.joinpath('federated_feature', args.feature_type, args.feature_len)
     
     audio_features = {}
 
@@ -115,7 +117,7 @@ if __name__ == '__main__':
                 if args.feature_type == 'mfcc':
                     audio_features[file_name]['data'] = mfcc(audio)
                 else:
-                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
+                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=400)
                 audio_features[file_name]['session'] = session_id
                 
     # crema-d
@@ -136,7 +138,7 @@ if __name__ == '__main__':
             if args.feature_type == 'mfcc':
                 audio_features[file_name]['data'] = mfcc(audio)
             else:
-                audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
+                audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=400)
             
     # iemocap
     elif args.dataset == 'iemocap':
@@ -154,7 +156,7 @@ if __name__ == '__main__':
                 if args.feature_type == 'mfcc':
                     audio_features[file_name]['data'] = mfcc(audio)
                 else:
-                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=800)
+                    audio_features[file_name]['data'] = mel_spectrogram(audio, n_fft=400)
                 
     create_folder(save_feat_path.joinpath(args.dataset))
     save_path = str(save_feat_path.joinpath(args.dataset, 'data.pkl'))
