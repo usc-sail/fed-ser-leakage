@@ -137,7 +137,7 @@ if __name__ == '__main__':
         train_speaker_dict = {}
         train_speaker_key_dict = {}
         final_test_dict = {}
-
+        
         for dataset in dataset_list:
             with open(preprocess_path.joinpath(dataset, save_row_str, 'training_'+args.norm+'.pkl'), 'rb') as f:
                 train_dict = pickle.load(f)
@@ -226,16 +226,17 @@ if __name__ == '__main__':
             train_validation_idx_dict[speaker_id]['train'] = idxs_train
             train_validation_idx_dict[speaker_id]['val'] = idxs_val
         
-        weight_hist_dict = {}
+        
         best_dict = {}
         for epoch in range(args.num_epochs):
-            frac = 0.2
+            frac = 0.1
             m = max(int(frac * num_of_speakers), 1)
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
             torch.cuda.empty_cache()
 
             local_weights, local_losses = [], []
-            weight_hist_dict[epoch] = {}
+
+            weight_hist_dict = {}
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
                 # args, dataset, device, criterion
@@ -262,9 +263,9 @@ if __name__ == '__main__':
                 
                 tmp_key = list(train_speaker_dict[speaker_id].keys())[0]
                 
-                weight_hist_dict[epoch][speaker_id] = {}
-                weight_hist_dict[epoch][speaker_id]['gradient'] = gradients
-                weight_hist_dict[epoch][speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
+                weight_hist_dict[speaker_id] = {}
+                weight_hist_dict[speaker_id]['gradient'] = gradients
+                weight_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
 
             # average global weights
             global_weights = average_weights(local_weights)
@@ -319,7 +320,11 @@ if __name__ == '__main__':
             print('best epoch %d, best final rec %.2f, best val rec %.2f' % (best_epoch, final_recall*100, best_val_recall*100))
             # pdb.set_trace()
             print(test_result_dict[args.dataset]['conf'][args.pred])
-        
+
+            f = open(str(model_result_path.joinpath('weights_hist_'+str(epoch)+'.pkl')), "wb")
+            pickle.dump(weight_hist_dict, f)
+            f.close()
+
         row_df = pd.DataFrame(index=[save_row_str])
         row_df['acc'] = best_dict[args.dataset]['acc'][args.pred]
         row_df['rec'] = best_dict[args.dataset]['rec'][args.pred]
@@ -338,10 +343,6 @@ if __name__ == '__main__':
         torch.save(best_model, str(model_result_path.joinpath('model.pt')))
         f = open(str(model_result_path.joinpath('results.pkl')), "wb")
         pickle.dump(result_dict, f)
-        f.close()
-
-        f = open(str(model_result_path.joinpath('weights_hist.pkl')), "wb")
-        pickle.dump(weight_hist_dict, f)
         f.close()
 
         # pdb.set_trace()
