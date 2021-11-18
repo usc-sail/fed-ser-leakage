@@ -234,7 +234,7 @@ if __name__ == '__main__':
         # training steps
         for epoch in range(args.num_epochs):
 
-            # we choose 20% of clients in training
+            # we choose 10% of clients in training
             frac = 0.1
             m = max(int(frac * num_of_speakers), 1)
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
@@ -251,10 +251,11 @@ if __name__ == '__main__':
                                           criterion=criterion, model_type=args.model_type,
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
                 w, loss, num_sampels = local_model.update_weights(model=copy.deepcopy(global_model), global_round=epoch)
-                del local_model
                 local_weights.append(copy.deepcopy(w))
                 local_losses.append(copy.deepcopy(loss))
                 local_num_sampels.append(num_sampels)
+
+                del local_model
                 
                 # pdb.set_trace()
                 gradients = []
@@ -294,12 +295,13 @@ if __name__ == '__main__':
                                           criterion=criterion, model_type=args.model_type,
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
                 acc_score, rec_score, loss, num_sampels = local_model.inference(model=global_model)
-                del local_model
                 
                 local_num_sampels.append(num_sampels)
                 list_acc.append(acc_score)
                 list_rec.append(rec_score)
                 list_loss.append(loss)
+
+                del local_model
             
             weighted_acc, weighted_rec = 0, 0
             total_num_samples = np.sum(local_num_sampels)
@@ -311,7 +313,6 @@ if __name__ == '__main__':
             validate_result['loss'] = np.mean(list_loss)
             
             # perform the training, validate, and test
-            # validate_result = train(global_cnn_model, device, dataloader_val, criterion, epoch, args, mode='validate')
             test_result_dict = test(global_model, device, dataloader_test, criterion, epoch, args)
 
             # save the results for later
