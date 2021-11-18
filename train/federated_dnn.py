@@ -22,7 +22,6 @@ from training_tools import EarlyStopping, ReturnResultDict
 from training_tools import setup_seed
 from baseline_models import dnn_classifier
 from update import LocalUpdate, average_weights, DatasetSplit
-from sklearn.metrics.pairwise import cosine_similarity
 
 import pdb
 
