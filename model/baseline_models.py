@@ -16,6 +16,7 @@ import pdb
 from torch.nn.modules import dropout
 import itertools
 
+
 class two_d_cnn(nn.Module):
     def __init__(self, input_spec_size=128, pred='emotion',
                 attention_size=256, global_feature=1):
@@ -249,7 +250,7 @@ class dnn_classifier(nn.Module):
 
 
 class attack_model(nn.Module):
-    def __init__(self, leak_layer):
+    def __init__(self, leak_layer, feature_type):
 
         super(attack_model, self).__init__()
         self.dropout_p = 0.25
@@ -257,40 +258,50 @@ class attack_model(nn.Module):
         self.num_gender_class = 2
         self.num_affect_classes = 3
         self.leak_layer = leak_layer
+
+        if feature_type == 'wav2vec':
+            first_layer_feat_size = 1408
+            stride_len = 10
+        elif feature_type == 'emobase':
+            first_layer_feat_size = 1280
+            stride_len = 5
+        elif feature_type == 'ComParE':
+            first_layer_feat_size = 1152
+            stride_len = 10
         
         self.conv0 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(4, 4)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, stride_len)),
             nn.Dropout2d(self.dropout_p),
 
             nn.Conv2d(16, 32, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(4, 4)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, stride_len)),
             nn.Dropout2d(self.dropout_p),
             
             nn.Conv2d(32, 32, kernel_size=5, padding=2),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(4, 8)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, stride_len)),
             nn.Dropout2d(self.dropout_p),
         )
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(2, 2)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p),
 
             nn.Conv2d(16, 32, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(4, 4)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p),
 
             nn.Conv2d(32, 32, kernel_size=5, padding=2),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(4, 4)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p)
         )
 
@@ -314,16 +325,13 @@ class attack_model(nn.Module):
 
         if self.leak_layer == 'full':
             # self.dense1 = nn.Linear(2692, 128)
-            self.dense1 = nn.Linear(2436, 256)
+            self.dense1 = nn.Linear(first_layer_feat_size+384+384, 256)
         elif self.leak_layer == 'first':
-            # self.dense1 = nn.Linear(1280, 128)
-            # self.dense1 = nn.Linear(1536, 128)
-            # self.dense1 = nn.Linear(1280, 128)
-            self.dense1 = nn.Linear(1024, 256)
+            self.dense1 = nn.Linear(first_layer_feat_size, 256)
         elif self.leak_layer == 'second':
-            self.dense1 = nn.Linear(576, 256)
+            self.dense1 = nn.Linear(384, 256)
         else:
-            self.dense1 = nn.Linear(260, 256)
+            self.dense1 = nn.Linear(384, 256)
 
         self.dense2 = nn.Linear(256, 128)
 
@@ -360,8 +368,6 @@ class attack_model(nn.Module):
             w1 = w1.reshape(-1, w1_size[1]*w1_size[2]*w1_size[3])
             w2 = w2.reshape(-1, w2_size[1]*w2_size[2]*w2_size[3])
 
-            # pdb.set_trace()
-
             z = torch.cat((w0, w1), 1)
             z = torch.cat((z, w2), 1)
             z = torch.cat((z, b0), 1)
@@ -372,9 +378,9 @@ class attack_model(nn.Module):
             w0 = self.conv0(w0.float())
             w0_size = w0.size()
             w0 = w0.reshape(-1, w0_size[1]*w0_size[2]*w0_size[3])
-            z = torch.cat((w0, b0), 1)
-
+            z = torch.cat((w0, b0.squeeze(dim=1)), 1)
             # pdb.set_trace()
+
         elif self.leak_layer == 'second':
             w1 = self.conv1(w1.float())
             w1_size = w1.size()
