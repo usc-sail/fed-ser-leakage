@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 for key in tmp_dict:
                     tmp_dict[key]['dataset'] = dataset
 
-            # we remake the data dict per speaker
+            # we remake the data dict per speaker for the ease of local training
             tmp_train_speaker_key_dict = {}
             for tmp_dict in [train_dict, validate_dict]:
                 for key in tmp_dict:
@@ -176,7 +176,7 @@ if __name__ == '__main__':
                         if speaker_id not in train_speaker_dict: train_speaker_dict[speaker_id] = {}
                         train_speaker_dict[speaker_id][key] = tmp_dict[key].copy()
             else:
-                # we want to divide speaker data
+                # we want to divide speaker data if the dataset is iemocap or msp-improv to increase client size
                 for speaker_id in tmp_train_speaker_key_dict:
                     idx_array = np.random.permutation(len(tmp_train_speaker_key_dict[speaker_id]))
                     key_list = tmp_train_speaker_key_dict[speaker_id]
@@ -196,11 +196,11 @@ if __name__ == '__main__':
         # Model related
         device = torch.device("cuda:1") if torch.cuda.is_available() else "cpu"
         if torch.cuda.is_available(): print('GPU available, use GPU')
-        
-        # so if it is trained using adv dataset or service provider dataset
+
         global_model = dnn_classifier(pred='emotion', input_spec=feature_len_dict[args.feature_type])
         global_model = global_model.to(device)
 
+        # define test data loader
         test_keys = list(final_test_dict.keys())
         dataset_test = DatasetSplit(final_test_dict, test_keys)
         dataloader_test = DataLoader(dataset_test, batch_size=1, num_workers=0, shuffle=False)
