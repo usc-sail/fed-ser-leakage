@@ -160,8 +160,11 @@ if __name__ == '__main__':
                 data = data_dict[sentence_file]
                 if args.feature_type == 'wav2vec':
                     save_data = np.array(data['data'])[:, 0, :].flatten()
-                else:
+                elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                     save_data = np.array(data['data'])[0]
+                else:
+                    # save_data = np.array(data['data'])[-1, 0, :]
+                    save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
 
                 if args.pred == 'emotion': 
                     if label != 'oth':
@@ -206,15 +209,22 @@ if __name__ == '__main__':
                         label = 'ang'
                     
                     data = data_dict[sentence_file]
+                    # pdb.set_trace()
                     if args.feature_type == 'wav2vec':
                         save_data = np.array(data['data'])[:, 0, :].flatten()
-                    else:
+                    elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                         save_data = np.array(data['data'])[0]
-
+                    else:
+                        save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
+                        # save_data = np.array(data['data'])[-1, 0, :]
+                    # pdb.set_trace()
+                    
+                    # pdb.set_trace()
                     session_id = int(sentence_part[0])
                     gender = 'M' if demo_df.loc[int(session_id), 'Sex'] == 'Male' else 'F'
                     speaker_id = int(sentence_file.split('_')[0])
                     save_data_dict(save_data, label, gender, speaker_id)
+            print(np.array(data['data'])[:, 0, :].shape)
 
         elif data_set_str == 'iemocap':
 
@@ -248,8 +258,11 @@ if __name__ == '__main__':
                                 data = data_dict[sentence_file]
                                 if args.feature_type == 'wav2vec':
                                     save_data = np.array(data['data'])[:, 0, :].flatten()
+                                elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
+                                    save_data = np.array(data['data'])[0]
                                 else:
-                                    save_data = np.array(data['data'])[0].flatten()
+                                    # save_data = np.array(data['data'])[-1, 0, :]
+                                    save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
                                 
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
