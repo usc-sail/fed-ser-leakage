@@ -22,8 +22,8 @@ import sys, os
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
-from training_tools import EarlyStopping, SpeechDataGenerator, ReturnResultDict
-from training_tools import speech_collate, setup_seed
+from training_tools import EarlyStopping, ReturnResultDict
+from training_tools import setup_seed
 from baseline_models import dnn_classifier
 from update import LocalUpdate, average_weights, DatasetSplit
 from sklearn.metrics.pairwise import cosine_similarity
@@ -37,7 +37,16 @@ gender_dict = {'F': 0, 'M': 1}
 speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1), 
                        'crema-d': np.arange(1001, 1092, 1),
                        'iemocap': np.arange(0, 10, 1)}
-feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216}
+
+feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
+                    'apc': 512*2, 'distilhubert': 768*2, 'tera': 768*2, 'wav2vec2': 768*2,
+                    'decoar2': 768*2, 'cpc': 256*2, 'audio_albert': 768*2}
+
+'''
+feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
+                    'apc': 512*3, 'distilhubert': 768, 'tera': 768*4,
+                    'decoar2': 768, 'cpc': 256*2, 'audio_albert': 768*4}
+'''
 
 def create_folder(folder):
     if Path.exists(folder) is False: Path.mkdir(folder)
@@ -120,6 +129,7 @@ if __name__ == '__main__':
     save_result_df = pd.DataFrame()
     dataset_list = args.dataset.split('_')
     
+    # We perform 5 fold experiments
     for fold_idx in range(0, 5):
         torch.cuda.empty_cache()
         torch.manual_seed(8)
@@ -130,6 +140,7 @@ if __name__ == '__main__':
 
         model_setting_str = 'local_epoch_'+str(args.local_epochs)
         model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
+        model_setting_str += '_lr_' + str(args.learning_rate)[2:]
         
         model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
         Path.mkdir(model_result_path, parents=True, exist_ok=True)
@@ -137,7 +148,8 @@ if __name__ == '__main__':
         train_speaker_dict = {}
         train_speaker_key_dict = {}
         final_test_dict = {}
-        
+
+        # prepare the data for the training
         for dataset in dataset_list:
             with open(preprocess_path.joinpath(dataset, save_row_str, 'training_'+args.norm+'.pkl'), 'rb') as f:
                 train_dict = pickle.load(f)
@@ -189,7 +201,7 @@ if __name__ == '__main__':
         speaker_list = list(set(train_speaker_dict.keys()))
         
         # Model related
-        device = torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
+        device = torch.device("cuda:1") if torch.cuda.is_available() else "cpu"
         if torch.cuda.is_available(): print('GPU available, use GPU')
         
         # so if it is trained using adv dataset or service provider dataset
@@ -226,17 +238,17 @@ if __name__ == '__main__':
             train_validation_idx_dict[speaker_id]['train'] = idxs_train
             train_validation_idx_dict[speaker_id]['val'] = idxs_val
         
-        
-        best_dict = {}
+        # training steps
         for epoch in range(args.num_epochs):
+
+            # we choose 20% of clients in training
             frac = 0.1
             m = max(int(frac * num_of_speakers), 1)
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
             torch.cuda.empty_cache()
 
-            local_weights, local_losses = [], []
-
-            weight_hist_dict = {}
+            local_weights, local_losses, local_num_sampels = [], [], []
+            gradient_hist_dict = {}
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
                 # args, dataset, device, criterion
@@ -245,10 +257,11 @@ if __name__ == '__main__':
                                           idxs=list(train_speaker_dict[speaker_id].keys()), device=device, 
                                           criterion=criterion, model_type=args.model_type,
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
-                w, loss = local_model.update_weights(model=copy.deepcopy(global_model), global_round=epoch)
+                w, loss, num_sampels = local_model.update_weights(model=copy.deepcopy(global_model), global_round=epoch)
                 del local_model
                 local_weights.append(copy.deepcopy(w))
                 local_losses.append(copy.deepcopy(loss))
+                local_num_sampels.append(num_sampels)
                 
                 # pdb.set_trace()
                 gradients = []
@@ -263,12 +276,13 @@ if __name__ == '__main__':
                 
                 tmp_key = list(train_speaker_dict[speaker_id].keys())[0]
                 
-                weight_hist_dict[speaker_id] = {}
-                weight_hist_dict[speaker_id]['gradient'] = gradients
-                weight_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
+                gradient_hist_dict[speaker_id] = {}
+                gradient_hist_dict[speaker_id]['gradient'] = gradients
+                gradient_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
 
             # average global weights
-            global_weights = average_weights(local_weights)
+            total_num_samples = np.sum(local_num_sampels)
+            global_weights = average_weights(local_weights, local_num_sampels)
 
             # update global weights
             global_model.load_state_dict(global_weights)
@@ -277,7 +291,7 @@ if __name__ == '__main__':
             train_loss.append(loss_avg)
 
             # Calculate avg training accuracy over all users at every epoch
-            list_acc, list_rec, list_loss = [], [], []
+            list_acc, list_rec, list_loss, local_num_sampels = [], [], [], []
             validate_result = {}
             global_model.eval()
             for idx in idxs_speakers:
@@ -286,15 +300,21 @@ if __name__ == '__main__':
                                           idxs=list(train_speaker_dict[speaker_id].keys()), device=device, 
                                           criterion=criterion, model_type=args.model_type,
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
-                acc_score, rec_score, loss = local_model.inference(model=global_model)
+                acc_score, rec_score, loss, num_sampels = local_model.inference(model=global_model)
                 del local_model
                 
+                local_num_sampels.append(num_sampels)
                 list_acc.append(acc_score)
                 list_rec.append(rec_score)
                 list_loss.append(loss)
             
-            validate_result['acc'] = np.mean(list_acc)
-            validate_result['rec'] = np.mean(list_rec)
+            weighted_acc, weighted_rec = 0, 0
+            total_num_samples = np.sum(local_num_sampels)
+            for acc_idx in range(len(list_acc)):
+                weighted_acc += list_acc[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
+                weighted_rec += list_rec[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
+            validate_result['acc'] = weighted_acc
+            validate_result['rec'] = weighted_rec
             validate_result['loss'] = np.mean(list_loss)
             
             # perform the training, validate, and test
@@ -306,7 +326,7 @@ if __name__ == '__main__':
             result_dict[epoch]['validate'] = validate_result
             result_dict[epoch]['test'] = test_result_dict
             
-            if validate_result['acc'] > best_val_acc:
+            if validate_result['rec'] > best_val_recall:
                 best_val_acc = validate_result['acc']
                 best_val_recall = validate_result['rec']
                 final_acc = test_result_dict[args.dataset]['acc'][args.pred]
@@ -319,10 +339,10 @@ if __name__ == '__main__':
             print('best epoch %d, best final acc %.2f, best val acc %.2f' % (best_epoch, final_acc*100, best_val_acc*100))
             print('best epoch %d, best final rec %.2f, best val rec %.2f' % (best_epoch, final_recall*100, best_val_recall*100))
             # pdb.set_trace()
-            print(test_result_dict[args.dataset]['conf'][args.pred])
+            print(best_dict[args.dataset]['conf'][args.pred])
 
-            f = open(str(model_result_path.joinpath('weights_hist_'+str(epoch)+'.pkl')), "wb")
-            pickle.dump(weight_hist_dict, f)
+            f = open(str(model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl')), "wb")
+            pickle.dump(gradient_hist_dict, f)
             f.close()
 
         row_df = pd.DataFrame(index=[save_row_str])
@@ -332,19 +352,39 @@ if __name__ == '__main__':
         row_df['dataset'] = args.dataset
         save_result_df = pd.concat([save_result_df, row_df])
         
-        for dataset in dataset_list:
-            row_df = pd.DataFrame(index=[save_row_str])
-            row_df['acc'] = best_dict[dataset]['acc'][args.pred]
-            row_df['rec'] = best_dict[dataset]['rec'][args.pred]
-            row_df['epoch'] = best_epoch
-            row_df['dataset'] = dataset
-            save_result_df = pd.concat([save_result_df, row_df])
-        
+        if len(dataset_list) > 1:
+            for dataset in dataset_list:
+                row_df = pd.DataFrame(index=[save_row_str])
+                row_df['acc'] = best_dict[dataset]['acc'][args.pred]
+                row_df['rec'] = best_dict[dataset]['rec'][args.pred]
+                row_df['epoch'] = best_epoch
+                row_df['dataset'] = dataset
+                save_result_df = pd.concat([save_result_df, row_df])
+            
         torch.save(best_model, str(model_result_path.joinpath('model.pt')))
         f = open(str(model_result_path.joinpath('results.pkl')), "wb")
         pickle.dump(result_dict, f)
         f.close()
 
-        # pdb.set_trace()
-        save_result_df.to_csv(str(root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'result.csv')))
+        model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
+        Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
+        save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
 
+    row_df = pd.DataFrame(index=['average'])
+    tmp_df = save_result_df.loc[save_result_df['dataset'] == args.dataset]
+    row_df['acc'] = np.mean(tmp_df['acc'])
+    row_df['rec'] = np.mean(tmp_df['rec'])
+    row_df['epoch'] = best_epoch
+    row_df['dataset'] = args.dataset
+    save_result_df = pd.concat([save_result_df, row_df])
+    
+    if len(dataset_list) > 1:
+        for dataset in dataset_list:
+            tmp_df = save_result_df.loc[save_result_df['dataset'] == dataset]
+            row_df = pd.DataFrame(index=['average'])
+            row_df['acc'] = np.mean(tmp_df['acc'])
+            row_df['rec'] = np.mean(tmp_df['rec'])
+            row_df['epoch'] = best_epoch
+            row_df['dataset'] = dataset
+            save_result_df = pd.concat([save_result_df, row_df])
+    save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))

@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 from torch import nn
 from torch.utils import data
@@ -99,8 +100,8 @@ class LocalUpdate(object):
                         100. * batch_idx / len(self.trainloader), loss.item()))
                 train_loss_list.append(loss.item())
             epoch_loss.append(sum(train_loss_list)/len(train_loss_list))
-
-        return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
+        
+        return model.state_dict(), sum(epoch_loss) / len(epoch_loss), len(self.train_validation_idx_dict['train'])
 
     def inference(self, model):
         """ Returns the inference accuracy and loss.
@@ -135,16 +136,19 @@ class LocalUpdate(object):
         # confusion_matrix_arr = np.round(confusion_matrix(truth_list, predict_list, normalize='true')*100, decimals=2)
         # print(confusion_matrix_arr)
         
-        return acc_score, rec_score, loss
+        return acc_score, rec_score, loss, len(self.train_validation_idx_dict['val'])
 
 
-def average_weights(w):
+def average_weights(w, num_samples_list):
     """
     Returns the average of the weights.
     """
+    total_num_samples = np.sum(num_samples_list)
     w_avg = copy.deepcopy(w[0])
+
+    for key in w_avg.keys():
+        w_avg[key] = w[0][key]*(num_samples_list[0]/total_num_samples)
     for key in w_avg.keys():
         for i in range(1, len(w)):
-            w_avg[key] += w[i][key]
-        w_avg[key] = torch.div(w_avg[key], len(w))
+            w_avg[key] += torch.div(w[i][key]*num_samples_list[i], total_num_samples)
     return w_avg
