@@ -8,13 +8,15 @@ import argparse
 import torchaudio
 import torch
 from tqdm import tqdm
+import s3prl.hub as hub
+
 
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
 
 from apc_model import APCModel
-from utils import RNNConfig
+from training_tools import RNNConfig
 
 
 def create_folder(folder):
@@ -22,12 +24,29 @@ def create_folder(folder):
 
 
 def pretrained_feature(audio):
-    with torch.inference_mode():
-        features, _ = model.extract_features(audio)
-        
-    save_feature = []
-    for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
     
+    save_feature = []
+    if args.feature_type == 'wav2vec':
+        with torch.inference_mode():
+            features, _ = model.extract_features(audio)
+        for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
+    elif args.feature_type == 'distilhubert' or args.feature_type == 'wav2vec2':
+        features = model([audio[0]])['last_hidden_state']
+        save_feature.append(np.mean(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.std(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.max(features.detach().cpu().numpy(), axis=1))
+    elif args.feature_type == 'cpc':
+        features = model([audio[0]])['last_hidden_state']
+        # for idx in range(len(features['hidden_states'])): save_feature.append(np.mean(features['hidden_states'][idx].detach().cpu().numpy(), axis=1))
+        save_feature.append(np.mean(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.std(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.max(features.detach().cpu().numpy(), axis=1))
+    else:
+        # pdb.set_trace()
+        features = model(audio)['last_hidden_state']
+        save_feature.append(np.mean(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.std(features.detach().cpu().numpy(), axis=1))
+        save_feature.append(np.max(features.detach().cpu().numpy(), axis=1))
     del features
     return save_feature
 
@@ -49,17 +68,35 @@ if __name__ == '__main__':
     audio_features = {}
 
     # Model related
-    device = torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
+    device = torch.device("cuda:1") if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
     
     if args.feature_type == 'wav2vec':
         bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
-        model = bundle.get_model().to(device)
+        model = bundle.get_model()
+    if args.feature_type == 'wav2vec2':
+        model = getattr(hub, 'wav2vec2')()
+    elif args.feature_type == 'cpc':
+        model = getattr(hub, 'modified_cpc')()
+    elif args.feature_type == 'vq_apc':
+        model = getattr(hub, 'vq_apc')()
+    elif args.feature_type == 'mockingjay':
+        model = getattr(hub, 'mockingjay')()
     elif args.feature_type == 'apc':
-        rnn_config = RNNConfig(input_size=80, hidden_size=512, num_layers=3, dropout=0.)
-        pretrained_apc = APCModel(mel_dim=80, prenet_config=None, rnn_config=rnn_config).cuda()
-        pretrained_weights_path =  os.path.join(os.path.abspath(os.path.curdir), '..', 'model', 'bs32-rhl3-rhs512-rd0-adam-res-ts3.pt')
-        pretrained_apc.load_state_dict(torch.load(pretrained_weights_path))
+        model = getattr(hub, 'apc')()
+    elif args.feature_type == 'vq_apc':
+        model = getattr(hub, 'vq_apc')()
+    elif args.feature_type == 'decoar2':
+        model = getattr(hub, 'decoar2')()
+    elif args.feature_type == 'distilhubert':
+        model = getattr(hub, 'distilhubert')()
+    elif args.feature_type == 'audio_albert':
+        model = getattr(hub, 'audio_albert')()
+    elif args.feature_type == 'npc':
+        model = getattr(hub, 'npc')()
+    elif args.feature_type == 'tera':
+        model = getattr(hub, 'tera')()
+    model = model.to(device)
 
     # msp-podcast
     if args.dataset == 'msp-podcast':
