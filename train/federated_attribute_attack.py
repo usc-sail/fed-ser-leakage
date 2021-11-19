@@ -234,44 +234,37 @@ if __name__ == '__main__':
 
     model_setting_str = 'local_epoch_'+str(args.local_epochs)
     model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
+    model_setting_str += '_lr_' + str(args.learning_rate)[2:]
     
-    shadow_model_dict, shadow_model_norm_dict = {}, {}
     weight_file_list = []
     for shadow_idx in range(0, 5):
-        gradients_layer_dict = {}
-        gender_list = []
-
         for epoch in range(args.num_epochs):
+        # for epoch in range(10):
             adv_federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
-            weight_file_str = str(adv_federated_model_result_path.joinpath('weights_hist_'+str(epoch)+'.pkl'))
+            weight_file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             weight_file_list.append(weight_file_str)
 
     # train model to infer gender
     gradient_layer = 4
-    # train_key, validate_key = train_test_split(list(gradients_layer_dict.keys()), test_size=0.2, random_state=0)
     train_key_list, validate_key_list = train_test_split(weight_file_list, test_size=0.2, random_state=0)
 
     # so if it is trained using adv dataset or service provider dataset
-    model = attack_model(args.leak_layer)
-    
+    model = attack_model(args.leak_layer, args.feature_type)
     model = model.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-04, betas=(0.9, 0.98), eps=1e-9)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True)
 
-    # dataset_train = DataGenerator(train_dict, list(train_dict.keys()))
+    # define data loader
     dataset_train = WeightDataGenerator(train_key_list)
     dataloader_train = DataLoader(dataset_train, batch_size=1, num_workers=0, shuffle=True)
     
     dataset_valid = WeightDataGenerator(validate_key_list)
     dataloader_valid = DataLoader(dataset_valid, batch_size=1, num_workers=0, shuffle=False)
 
-    loss, total, correct = 0.0, 0.0, 0.0
-    best_val_recall, final_recall, best_epoch, final_confusion = 0, 0, 0, 0
-    best_val_acc, final_acc = 0, 0
-    # del gradients_layer_dict
-
+    best_val_recall, best_val_acc, best_epoch = 0, 0, 0
+    best_conf_array = None
     for epoch in range(50):
         train_result = train(model, device, dataloader_train, epoch, mode='train')
         validate_result = train(model, device, dataloader_valid, epoch, mode='validate')
@@ -281,16 +274,21 @@ if __name__ == '__main__':
             best_val_recall = validate_result[args.adv_dataset]['rec'][args.pred]
             best_epoch = epoch
             best_model = deepcopy(model.state_dict())
-            print('best epoch %d, best val acc %.2f, best val rec %.2f' % (best_epoch, best_val_acc*100, best_val_recall*100))
-
-    # del model, train_dict, validate_dict
+            best_conf_array = validate_result[args.adv_dataset]['conf'][args.pred]
+        print('best epoch %d, best val acc %.2f, best val rec %.2f' % (best_epoch, best_val_acc*100, best_val_recall*100))
+        print(best_conf_array)
     del model
     
-    # epoch_info_list = [[0, args.num_epochs], [0, 25], [25, 50], [50, 75], [75, 100]]
-    eval_model = attack_model(args.leak_layer)
+    attack_model_result_csv_path = Path.cwd().parents[0].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
+    Path.mkdir(attack_model_result_csv_path, parents=True, exist_ok=True)
+    torch.save(best_model, str(attack_model_result_csv_path.joinpath('model.pt')))
+
+    # load the evaluation model
+    eval_model = attack_model(args.leak_layer, args.feature_type)
     eval_model = eval_model.to(device)
     eval_model.load_state_dict(best_model)
 
+    # we evaluate the attacker performance on service provider training
     for fold_idx in range(0, 5):
         test_list = []
         for epoch in range(args.num_epochs):
@@ -300,7 +298,7 @@ if __name__ == '__main__':
             
             # Model related
             federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
-            weight_file_str = str(federated_model_result_path.joinpath('weights_hist_'+str(epoch)+'.pkl'))
+            weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             test_list.append(weight_file_str)
             
         dataset_test = WeightDataGenerator(test_list)
@@ -308,21 +306,15 @@ if __name__ == '__main__':
 
         test_results_dict = test(eval_model, device, dataloader_test, epoch=0)
         row_df['acc'] = test_results_dict[args.dataset]['acc'][args.pred]
-        row_df['rec'] = test_results_dict[args.dataset]['rec'][args.pred]
+        row_df['uar'] = test_results_dict[args.dataset]['rec'][args.pred]
         save_result_df = pd.concat([save_result_df, row_df])
 
         del dataset_test, dataloader_test
         
     row_df = pd.DataFrame(index=['average'])
     row_df['acc'] = np.mean(save_result_df['acc'])
-    row_df['rec'] = np.mean(save_result_df['rec'])
+    row_df['uar'] = np.mean(save_result_df['uar'])
     save_result_df = pd.concat([save_result_df, row_df])
 
-    create_folder(Path.cwd().parents[0].joinpath('results'))
-    create_folder(Path.cwd().parents[0].joinpath('results', args.leak_layer))
-    create_folder(Path.cwd().parents[0].joinpath('results', args.leak_layer, args.model_type))
-    create_folder(Path.cwd().parents[0].joinpath('results', args.leak_layer, args.model_type, args.feature_type))
-    create_folder(Path.cwd().parents[0].joinpath('results', args.leak_layer, args.model_type, args.feature_type, model_setting_str))
-
-    save_result_df.to_csv(str(Path.cwd().parents[0].joinpath('results', args.leak_layer, args.model_type, args.feature_type, model_setting_str, 'private_'+ str(args.dataset) + '_local_' + str(args.local_epochs) + '_result.csv')))
+    save_result_df.to_csv(str(attack_model_result_csv_path.joinpath('private_'+ str(args.dataset) + '_local_' + str(args.local_epochs) + '_result.csv')))
 

@@ -38,7 +38,8 @@ speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1),
 # define feature len mapping
 feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
                     'apc': 512*2, 'distilhubert': 768*2, 'tera': 768*2, 'wav2vec2': 768*2,
-                    'decoar2': 768*2, 'cpc': 256*2, 'audio_albert': 768*2}
+                    'decoar2': 768*2, 'cpc': 256*2, 'audio_albert': 768*2, 
+                    'mockingjay': 768*2, 'npc': 512*2, 'vq_apc': 512*2, 'vq_wav2vec': 512*2}
 
 
 def create_folder(folder):
@@ -257,13 +258,18 @@ if __name__ == '__main__':
 
                 del local_model
                 
-                # pdb.set_trace()
+                # 'fake' gradients saving code
+                # iterate all layers in the classifier model
                 gradients = []
                 for key in copy.deepcopy(global_model).state_dict():
                     original_params = copy.deepcopy(global_model).state_dict()[key].detach().clone()
                     update_params = copy.deepcopy(w)[key].detach().clone()
-                    local_update_per_batch = int(len(train_speaker_dict[speaker_id]) * 0.8 / int(args.batch_size)) + 1
-                    tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_batch*int(args.local_epochs))
+                    
+                    # calculate how many updates per local epoch 
+                    local_update_per_epoch = int(len(train_speaker_dict[speaker_id]) * 0.8 / int(args.batch_size)) + 1
+                    
+                    # calculate 'fake' gradients
+                    tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_epoch*int(args.local_epochs))
                     tmp_gradients = tmp_gradients.cpu().numpy()
                     gradients.append(tmp_gradients)
                     del tmp_gradients, original_params, update_params
