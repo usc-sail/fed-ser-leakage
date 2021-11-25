@@ -48,31 +48,29 @@ def test(model, device, data_loader, loss, epoch, args, pred='emotion'):
     model.eval()
     predict_dict, truth_dict = {}, {}
     
-    predict_dict[args.dataset] = []
-    truth_dict[args.dataset] = []
+    predict_dict[args.dataset], truth_dict[args.dataset] = [], []
     for dataset in dataset_list:
-        predict_dict[dataset] = []
-        truth_dict[dataset] = []
-    result_dict = {}
+        predict_dict[dataset], truth_dict[dataset] = [], []
 
     for batch_idx, (features, labels, dataset) in enumerate(data_loader):
-        features, labels = features.to(device), labels.to(device)
+        features, labels_arr = features.to(device), labels.to(device)
         features = features.float()
-
-        labels_emo = labels.to(device)
-        labels_arr = labels_emo
         
         preds = model(features)
-
         m = nn.Softmax(dim=1)
         preds = m(preds)
+        
+        # Save predictions
         prediction = np.argmax(preds.detach().cpu().numpy()[0])
         predict_dict[args.dataset].append(prediction)
         predict_dict[dataset[0]].append(prediction)
 
+        # Save truth labels
         truth_dict[args.dataset].append(labels_arr.detach().cpu().numpy()[0])
         truth_dict[dataset[0]].append(labels_arr.detach().cpu().numpy()[0])
     
+    # Calculate accuracy, uar, and loss using ReturnResultDict
+    result_dict = {}
     for dataset in dataset_list:
         tmp_result_dict = ReturnResultDict(truth_dict, predict_dict, dataset, args.pred, mode='test', loss=None, epoch=epoch)
         result_dict[dataset] = tmp_result_dict[dataset].copy()
