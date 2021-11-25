@@ -1,6 +1,6 @@
 # Speech feature extraction
 
-## OpenSMILE features
+## 1. OpenSMILE features
 We extract speech features of human knowledge using OpenSMILE toolkit. You can refer to [OpenSMILE](https://www.audeering.com/research/opensmile/) for more information.
 
 ### Quick example
@@ -11,7 +11,7 @@ taskset 100 python3 opensmile_feature_extraction.py --dataset msp-improv --featu
 ```
 The support data sets are IEMOCAP, MSP-Improv, and CREMA-D. The support feature_type args are emobase, ComParE, and GeMAPS.
 
-## Pretrained features
+## 2. Pretrained features
 
 We extract a variety of deep speech representations using pretrained models. You can refer to [SUPERB](https://arxiv.org/abs/2105.01051) paper for their model architures and pre-training loss styles.
 
@@ -36,7 +36,7 @@ taskset 100 python3 pretrained_audio_feature_extraction.py --dataset msp-improv 
 The support data sets are IEMOCAP, MSP-Improv, and CREMA-D. The support feature_type args are apc, vq_apc, tera, decoar2, mockingjay, npc, and distilhubert.
 
 
-## Referecences
+## 3. Referecences
 
 
 **[OpenSMILE](https://www.audeering.com/research/opensmile/)**
