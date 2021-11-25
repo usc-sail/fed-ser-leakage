@@ -320,7 +320,6 @@ if __name__ == '__main__':
 
             # 3. Calculate avg validation accuracy/uar over all selected users at every epoch
             validation_acc, validation_uar, validation_loss, local_num_sampels = [], [], [], []
-            validate_result = {}
             global_model.eval()
 
             # 3.1 Iterate each client at the current global round, calculate the performance
@@ -341,13 +340,13 @@ if __name__ == '__main__':
                 del local_model
             
             # 3.2 Re-Calculate weigted performance scores
+            validate_result = {}
             weighted_acc, weighted_rec = 0, 0
             total_num_samples = np.sum(local_num_sampels)
             for acc_idx in range(len(validation_acc)):
                 weighted_acc += validation_acc[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
                 weighted_rec += validation_uar[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
-            validate_result['acc'] = weighted_acc
-            validate_result['rec'] = weighted_rec
+            validate_result['acc'], validate_result['rec'] = weighted_acc, weighted_rec
             validate_result['loss'] = np.mean(validation_loss)
             
             # 4. Perform the test on holdout set
