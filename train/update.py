@@ -114,16 +114,6 @@ class LocalUpdate(object):
                 loss = self.criterion(preds, labels)
                 loss.backward()
 
-            '''
-            grads = []
-            tmp_gradient = torch.autograd.grad(loss, model.parameters())
-            for gradient in tmp_gradient:
-                grads.append(gradient.detach().clone())
-            
-            with torch.no_grad():
-                
-            pdb.set_trace()
-            '''
         grads = []
         for param in model.parameters():
             grads.append(param.grad.detach().clone())
