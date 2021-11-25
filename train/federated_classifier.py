@@ -3,6 +3,7 @@ import torch.nn as nn
 import argparse
 import torch.multiprocessing
 from copy import deepcopy
+from torch.nn.modules import dropout
 from torch.utils.data import DataLoader, dataset
 from re import L
 
@@ -21,7 +22,7 @@ sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 from training_tools import EarlyStopping, ReturnResultDict
 from training_tools import setup_seed
 from baseline_models import dnn_classifier
-from update import LocalUpdate, average_weights, DatasetSplit
+from update import LocalUpdate, average_weights, average_gradients, DatasetSplit
 
 import pdb
 
@@ -36,11 +37,17 @@ speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1),
                        'iemocap': np.arange(0, 10, 1)}
                        
 # define feature len mapping
+'''
 feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
                     'apc': 512*2, 'distilhubert': 768*2, 'tera': 768*2, 'wav2vec2': 768*2,
                     'decoar2': 768*2, 'cpc': 256*2, 'audio_albert': 768*2, 
                     'mockingjay': 768*2, 'npc': 512*2, 'vq_apc': 512*2, 'vq_wav2vec': 512*2}
+'''
 
+feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
+                    'apc': 512, 'distilhubert': 768, 'tera': 768, 'wav2vec2': 768,
+                    'decoar2': 768, 'cpc': 256, 'audio_albert': 768, 
+                    'mockingjay': 768, 'npc': 512, 'vq_apc': 512, 'vq_wav2vec': 512}
 
 def create_folder(folder):
     if Path.exists(folder) is False: Path.mkdir(folder)
@@ -97,18 +104,18 @@ if __name__ == '__main__':
     parser.add_argument('--feature_type', default='mel_spec')
     parser.add_argument('--input_channel', default=1)
     parser.add_argument('--dropout', default=0.5)
-    parser.add_argument('--learning_rate', default=0.0001)
+    parser.add_argument('--learning_rate', default=0.05)
     parser.add_argument('--input_spec_size', default=128)
-    parser.add_argument('--batch_size', default=10)
+    parser.add_argument('--batch_size', default=20)
     parser.add_argument('--aug', default=None)
     parser.add_argument('--use_gpu', default=True)
-    parser.add_argument('--num_epochs', default=100)
+    parser.add_argument('--num_epochs', default=150)
     parser.add_argument('--local_epochs', default=1)
     parser.add_argument('--norm', default='min_max')
     parser.add_argument('--win_len', default=200)
     parser.add_argument('--optimizer', default='sgd')
     parser.add_argument('--shift', default=1)
-    parser.add_argument('--model_type', default='dnn')
+    parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')
 
     args = parser.parse_args()
@@ -131,8 +138,8 @@ if __name__ == '__main__':
         # save folder details
         save_row_str = 'fold'+str(int(fold_idx+1))
         row_df = pd.DataFrame(index=[save_row_str])
-
-        model_setting_str = 'local_epoch_'+str(args.local_epochs)
+        
+        model_setting_str = 'local_epoch_'+str(args.local_epochs) if args.model_type == 'fed_avg' else 'local_epoch_1'
         model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
         model_setting_str += '_lr_' + str(args.learning_rate)[2:]
         
@@ -166,10 +173,13 @@ if __name__ == '__main__':
                         tmp_train_speaker_key_dict[speaker_id] = []
                     train_speaker_key_dict[speaker_id].append(key)
                     tmp_train_speaker_key_dict[speaker_id].append(key)
-            
+            # test set will be the same
             for key in test_dict:
                 final_test_dict[key] = test_dict[key].copy()
 
+            # in federated setting that the norm validation dict will be based on local client data
+            # so we combine train_dict and validate_dict in centralized setting
+            # then choose certain amount data per client as local validation set
             if dataset == 'crema-d':
                 for tmp_dict in [train_dict, validate_dict]:
                     for key in tmp_dict:
@@ -179,9 +189,12 @@ if __name__ == '__main__':
             else:
                 # we want to divide speaker data if the dataset is iemocap or msp-improv to increase client size
                 for speaker_id in tmp_train_speaker_key_dict:
+                    # in iemocap and msp-improv
+                    # we spilit each speaker data into 10 parts in order to create more clients
                     idx_array = np.random.permutation(len(tmp_train_speaker_key_dict[speaker_id]))
                     key_list = tmp_train_speaker_key_dict[speaker_id]
                     for i in range(10):
+                        # we randomly pick 10% of data
                         idxs_train = idx_array[int(0.1*i*len(idx_array)):int(0.1*(i+1)*len(idx_array))]
                         for idx in idxs_train:
                             key = key_list[idx]
@@ -198,7 +211,7 @@ if __name__ == '__main__':
         device = torch.device("cuda:1") if torch.cuda.is_available() else "cpu"
         if torch.cuda.is_available(): print('GPU available, use GPU')
 
-        global_model = dnn_classifier(pred='emotion', input_spec=feature_len_dict[args.feature_type])
+        global_model = dnn_classifier(pred='emotion', input_spec=feature_len_dict[args.feature_type], dropout=float(args.dropout))
         global_model = global_model.to(device)
 
         # define test data loader
@@ -233,7 +246,7 @@ if __name__ == '__main__':
             train_validation_idx_dict[speaker_id]['val'] = idxs_val
         
         # training steps
-        for epoch in range(args.num_epochs):
+        for epoch in range(int(args.num_epochs)):
 
             # we choose 10% of clients in training
             frac = 0.1
@@ -241,7 +254,7 @@ if __name__ == '__main__':
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
             torch.cuda.empty_cache()
 
-            local_weights, local_losses, local_num_sampels = [], [], []
+            local_weights, local_gradients, local_losses, local_num_sampels = [], [], [], []
             gradient_hist_dict = {}
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
@@ -251,28 +264,37 @@ if __name__ == '__main__':
                                           idxs=list(train_speaker_dict[speaker_id].keys()), device=device, 
                                           criterion=criterion, model_type=args.model_type,
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
-                w, loss, num_sampels = local_model.update_weights(model=copy.deepcopy(global_model), global_round=epoch)
-                local_weights.append(copy.deepcopy(w))
+                if args.model_type == 'fed_avg':
+                    w, loss, num_sampels = local_model.update_weights(model=copy.deepcopy(global_model), global_round=epoch)
+                    local_weights.append(copy.deepcopy(w))
+                else:
+                    g, loss, num_sampels = local_model.update_gradients(model=copy.deepcopy(global_model), global_round=epoch)
+                    local_gradients.append(copy.deepcopy(g))
                 local_losses.append(copy.deepcopy(loss))
                 local_num_sampels.append(num_sampels)
 
                 del local_model
                 
-                # 'fake' gradients saving code
-                # iterate all layers in the classifier model
-                gradients = []
-                for key in copy.deepcopy(global_model).state_dict():
-                    original_params = copy.deepcopy(global_model).state_dict()[key].detach().clone()
-                    update_params = copy.deepcopy(w)[key].detach().clone()
-                    
-                    # calculate how many updates per local epoch 
-                    local_update_per_epoch = int(len(train_speaker_dict[speaker_id]) * 0.8 / int(args.batch_size)) + 1
-                    
-                    # calculate 'fake' gradients
-                    tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_epoch*int(args.local_epochs))
-                    tmp_gradients = tmp_gradients.cpu().numpy()
-                    gradients.append(tmp_gradients)
-                    del tmp_gradients, original_params, update_params
+                if args.model_type == 'fed_avg':
+                    # 'fake' gradients saving code
+                    # iterate all layers in the classifier model
+                    gradients = []
+                    for key in copy.deepcopy(global_model).state_dict():
+                        original_params = copy.deepcopy(global_model).state_dict()[key].detach().clone()
+                        update_params = copy.deepcopy(w)[key].detach().clone()
+                        
+                        # calculate how many updates per local epoch 
+                        local_update_per_epoch = int(len(train_speaker_dict[speaker_id]) * 0.8 / int(args.batch_size)) + 1
+                        
+                        # calculate 'fake' gradients
+                        tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_epoch*int(args.local_epochs))
+                        tmp_gradients = tmp_gradients.cpu().numpy()
+                        gradients.append(tmp_gradients)
+                        del tmp_gradients, original_params, update_params
+                else:
+                    gradients = copy.deepcopy(g)
+                    for i in range(len(gradients)):
+                        gradients[i] = gradients[i].cpu().numpy()
                 
                 tmp_key = list(train_speaker_dict[speaker_id].keys())[0]
                 
@@ -280,13 +302,25 @@ if __name__ == '__main__':
                 gradient_hist_dict[speaker_id]['gradient'] = gradients
                 gradient_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
 
-            # average global weights
             total_num_samples = np.sum(local_num_sampels)
-            global_weights = average_weights(local_weights, local_num_sampels)
-
+            if args.model_type == 'fed_avg':
+                # average global weights
+                global_weights = average_weights(local_weights, local_num_sampels)
+            else:
+                # average global gradients
+                global_gradients = average_gradients(local_gradients, local_num_sampels)
+                # update global weights
+                global_weights = copy.deepcopy(global_model.state_dict())
+                global_weights_keys = list(global_weights.keys())
+                
+                for key_idx in range(len(global_weights_keys)):
+                    key = global_weights_keys[key_idx]
+                    global_weights[key] -= float(args.learning_rate)*global_gradients[key_idx]
+                del global_gradients
+            
             # update global weights
             global_model.load_state_dict(global_weights)
-
+            
             loss_avg = sum(local_losses) / len(local_losses)
             train_loss.append(loss_avg)
 
