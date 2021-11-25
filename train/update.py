@@ -85,9 +85,6 @@ class LocalUpdate(object):
                 preds = model(features)
                 loss = self.criterion(preds, labels)
 
-                # dy_dx = torch.autograd.grad(loss, model.parameters(), allow_unused=True, retain_graph=True)
-                # original_dy_dx = list((_.detach().clone() for _ in dy_dx))
-                # pdb.set_trace()
                 loss.backward()
                 optimizer.step()
                 
@@ -102,6 +99,38 @@ class LocalUpdate(object):
             epoch_loss.append(sum(train_loss_list)/len(train_loss_list))
         
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), len(self.train_validation_idx_dict['train'])
+
+    def update_gradients(self, model, global_round):
+        # Set mode to train model
+        model.train()
+        lr = float(self.args.learning_rate)
+
+        model.zero_grad()
+        for batch_idx, (features, labels, dataset) in enumerate(self.trainloader):
+            if batch_idx == 0:
+                features, labels = features.to(self.device), labels.to(self.device)
+                features = features.float()
+                preds = model(features)
+                loss = self.criterion(preds, labels)
+                loss.backward()
+
+            '''
+            grads = []
+            tmp_gradient = torch.autograd.grad(loss, model.parameters())
+            for gradient in tmp_gradient:
+                grads.append(gradient.detach().clone())
+            
+            with torch.no_grad():
+                
+            pdb.set_trace()
+            '''
+        grads = []
+        for param in model.parameters():
+            grads.append(param.grad.detach().clone())
+        # num_samples = len(features)
+        num_samples = len(self.train_validation_idx_dict['train'])
+            
+        return grads, loss.item(), num_samples
 
     def inference(self, model):
         """ Returns the inference accuracy and loss.
@@ -133,8 +162,6 @@ class LocalUpdate(object):
 
         acc_score = accuracy_score(truth_list, predict_list)
         rec_score = recall_score(truth_list, predict_list, average='macro')
-        # confusion_matrix_arr = np.round(confusion_matrix(truth_list, predict_list, normalize='true')*100, decimals=2)
-        # print(confusion_matrix_arr)
         
         return acc_score, rec_score, loss, len(self.train_validation_idx_dict['val'])
 
@@ -152,3 +179,19 @@ def average_weights(w, num_samples_list):
         for i in range(1, len(w)):
             w_avg[key] += torch.div(w[i][key]*num_samples_list[i], total_num_samples)
     return w_avg
+
+
+def average_gradients(g, num_samples_list):
+    """
+    Returns the average of the gradients.
+    """
+    total_num_samples = np.sum(num_samples_list)
+    g_avg = copy.deepcopy(g[0])
+    
+    for layer_idx in range(len(g[0])):
+        g_avg[layer_idx] = g[0][layer_idx] # *(num_samples_list[0]/total_num_samples)
+    for layer_idx in range(len(g[0])):
+        for client_idx in range(1, len(g)):
+            g_avg[layer_idx] += torch.div(g[client_idx][layer_idx]*num_samples_list[client_idx], total_num_samples)
+            # g_avg[layer_idx] += g[client_idx][layer_idx]
+    return g_avg
