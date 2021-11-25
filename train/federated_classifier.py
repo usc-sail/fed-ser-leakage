@@ -35,12 +35,9 @@ feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216,
                     'decoar2': 768, 'cpc': 256, 'audio_albert': 768, 
                     'mockingjay': 768, 'npc': 512, 'vq_apc': 512, 'vq_wav2vec': 512}
 
-def save_result_df(save_index, acc, rec, best_epoch, dataset):
+def save_result_df(save_index, acc, uar, best_epoch, dataset):
     row_df = pd.DataFrame(index=[save_index])
-    row_df['acc'] = acc
-    row_df['uar'] = rec
-    row_df['epoch'] = best_epoch
-    row_df['dataset'] = dataset
+    row_df['acc'], row_df['uar'], row_df['epoch'], row_df['dataset']  = acc, uar, best_epoch, dataset
     return row_df
 
 
@@ -54,9 +51,8 @@ def test(model, device, data_loader, loss, epoch, args, pred='emotion'):
 
     for batch_idx, (features, labels, dataset) in enumerate(data_loader):
         features, labels_arr = features.to(device), labels.to(device)
-        features = features.float()
         
-        preds = model(features)
+        preds = model(features.float())
         m = nn.Softmax(dim=1)
         preds = m(preds)
         
