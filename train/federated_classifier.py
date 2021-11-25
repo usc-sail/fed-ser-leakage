@@ -109,7 +109,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     shift = 'shift' if int(args.shift) == 1 else 'without_shift'
-    
     setup_seed(8)
 
     root_path = Path('/media/data/projects/speech-privacy')
@@ -224,15 +223,14 @@ if __name__ == '__main__':
         result_dict = {}
 
         train_loss, validation_accuracy = [], []
+
+        # We save the utterance keys used for training and validation per speaker (client)
         train_validation_idx_dict = {}
         for speaker_id in train_speaker_dict:
-            train_validation_idx_dict[speaker_id] = {}
-
             idx_array = np.random.permutation(len(train_speaker_dict[speaker_id]))
-            idxs_train = idx_array[:int(0.8*len(idx_array))]
-            idxs_val = idx_array[int(0.8*len(idx_array)):]
-            train_validation_idx_dict[speaker_id]['train'] = idxs_train
-            train_validation_idx_dict[speaker_id]['val'] = idxs_val
+            train_validation_idx_dict[speaker_id] = {}
+            train_validation_idx_dict[speaker_id]['train'] = idx_array[:int(0.8*len(idx_array))]
+            train_validation_idx_dict[speaker_id]['val'] = idx_array[int(0.8*len(idx_array)):]
         
         # Training steps
         for epoch in range(int(args.num_epochs)):
@@ -240,8 +238,7 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
             
             # we choose 10% of clients in training
-            frac = 0.1
-            m = max(int(frac * num_of_speakers), 1)
+            m = max(int(0.1 * num_of_speakers), 1)
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
             
             # define list varibles that saves the weights, loss, num_sample, etc.
@@ -368,14 +365,12 @@ if __name__ == '__main__':
             result_dict[epoch]['test'] = test_result_dict
             
             if validate_result['rec'] > best_val_recall:
-                best_val_acc = validate_result['acc']
-                best_val_recall = validate_result['rec']
+                best_val_acc, best_val_recall = validate_result['acc'], validate_result['rec']
                 final_acc = test_result_dict[args.dataset]['acc'][args.pred]
                 final_recall = test_result_dict[args.dataset]['rec'][args.pred]
                 final_confusion = test_result_dict[args.dataset]['conf'][args.pred]
-                best_epoch = epoch
+                best_epoch, best_dict = epoch, test_result_dict.copy()
                 best_model = deepcopy(global_model.state_dict())
-                best_dict = test_result_dict.copy()
             
             # Some print out
             print('best epoch %d, best final acc %.2f, best val acc %.2f' % (best_epoch, final_acc*100, best_val_acc*100))
