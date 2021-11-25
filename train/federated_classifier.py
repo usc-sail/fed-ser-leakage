@@ -28,20 +28,12 @@ import pdb
 emo_dict = {'neu': 0, 'hap': 1, 'sad': 2, 'ang': 3}
 affect_dict = {'low': 0, 'med': 1, 'high': 2}
 gender_dict = {'F': 0, 'M': 1}
-
-# define speaker mapping
-speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1), 
-                       'crema-d': np.arange(1001, 1092, 1),
-                       'iemocap': np.arange(0, 10, 1)}
                        
 # define feature len mapping
 feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
                     'apc': 512, 'distilhubert': 768, 'tera': 768, 'wav2vec2': 768,
                     'decoar2': 768, 'cpc': 256, 'audio_albert': 768, 
                     'mockingjay': 768, 'npc': 512, 'vq_apc': 512, 'vq_wav2vec': 512}
-
-def create_folder(folder):
-    if Path.exists(folder) is False: Path.mkdir(folder)
 
 def save_result_df(save_index, acc, rec, best_epoch, dataset):
     row_df = pd.DataFrame(index=[save_index])
