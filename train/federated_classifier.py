@@ -3,7 +3,6 @@ import torch.nn as nn
 import argparse
 import torch.multiprocessing
 from copy import deepcopy
-from torch.nn.modules import dropout
 from torch.utils.data import DataLoader, dataset
 from re import L
 
@@ -13,7 +12,6 @@ import pickle
 from pathlib import Path
 import pandas as pd
 import copy
-import torch.nn.functional as F
 
 import sys, os
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
@@ -37,13 +35,6 @@ speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1),
                        'iemocap': np.arange(0, 10, 1)}
                        
 # define feature len mapping
-'''
-feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
-                    'apc': 512*2, 'distilhubert': 768*2, 'tera': 768*2, 'wav2vec2': 768*2,
-                    'decoar2': 768*2, 'cpc': 256*2, 'audio_albert': 768*2, 
-                    'mockingjay': 768*2, 'npc': 512*2, 'vq_apc': 512*2, 'vq_wav2vec': 512*2}
-'''
-
 feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
                     'apc': 512, 'distilhubert': 768, 'tera': 768, 'wav2vec2': 768,
                     'decoar2': 768, 'cpc': 256, 'audio_albert': 768, 
@@ -51,6 +42,14 @@ feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216,
 
 def create_folder(folder):
     if Path.exists(folder) is False: Path.mkdir(folder)
+
+def save_result_df(save_index, acc, rec, best_epoch, dataset):
+    row_df = pd.DataFrame(index=[save_index])
+    row_df['acc'] = acc
+    row_df['uar'] = rec
+    row_df['epoch'] = best_epoch
+    row_df['dataset'] = dataset
+    return row_df
 
 
 def test(model, device, data_loader, loss, epoch, args, pred='emotion'):
@@ -245,21 +244,27 @@ if __name__ == '__main__':
             train_validation_idx_dict[speaker_id]['train'] = idxs_train
             train_validation_idx_dict[speaker_id]['val'] = idxs_val
         
-        # training steps
+        # Training steps
         for epoch in range(int(args.num_epochs)):
-
+            
+            torch.cuda.empty_cache()
+            
             # we choose 10% of clients in training
             frac = 0.1
             m = max(int(frac * num_of_speakers), 1)
             idxs_speakers = np.random.choice(range(num_of_speakers), m, replace=False)
-            torch.cuda.empty_cache()
-
+            
+            # define list varibles that saves the weights, loss, num_sample, etc.
             local_weights, local_gradients, local_losses, local_num_sampels = [], [], [], []
             gradient_hist_dict = {}
+
+            # 1. Local training, return weights in fed_avg, return gradients in fed_sgd
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
                 # args, dataset, device, criterion
                 print('speaker id %s' % speaker_id)
+
+                # 1.1 Local training
                 local_model = LocalUpdate(args=args, dataset=train_speaker_dict[speaker_id], 
                                           idxs=list(train_speaker_dict[speaker_id].keys()), device=device, 
                                           criterion=criterion, model_type=args.model_type,
@@ -275,6 +280,7 @@ if __name__ == '__main__':
 
                 del local_model
                 
+                # 1.2 calculate and save the raw gradients or pseudo gradients
                 if args.model_type == 'fed_avg':
                     # 'fake' gradients saving code
                     # iterate all layers in the classifier model
@@ -296,20 +302,25 @@ if __name__ == '__main__':
                     for i in range(len(gradients)):
                         gradients[i] = gradients[i].cpu().numpy()
                 
+                # 1.3 save the attack features
                 tmp_key = list(train_speaker_dict[speaker_id].keys())[0]
-                
                 gradient_hist_dict[speaker_id] = {}
                 gradient_hist_dict[speaker_id]['gradient'] = gradients
                 gradient_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
+            # 1.4 dump the gradients for the later usage
+            f = open(str(model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl')), "wb")
+            pickle.dump(gradient_hist_dict, f)
+            f.close()
 
+            # 2. global model updates
             total_num_samples = np.sum(local_num_sampels)
             if args.model_type == 'fed_avg':
-                # average global weights
+                # 2.1 average global weights
                 global_weights = average_weights(local_weights, local_num_sampels)
             else:
-                # average global gradients
+                # 2.1 average global gradients
                 global_gradients = average_gradients(local_gradients, local_num_sampels)
-                # update global weights
+                # 2.2 update global weights
                 global_weights = copy.deepcopy(global_model.state_dict())
                 global_weights_keys = list(global_weights.keys())
                 
@@ -318,16 +329,18 @@ if __name__ == '__main__':
                     global_weights[key] -= float(args.learning_rate)*global_gradients[key_idx]
                 del global_gradients
             
-            # update global weights
+            # 2.3 load new global weights
             global_model.load_state_dict(global_weights)
             
             loss_avg = sum(local_losses) / len(local_losses)
             train_loss.append(loss_avg)
 
-            # Calculate avg training accuracy over all users at every epoch
-            list_acc, list_rec, list_loss, local_num_sampels = [], [], [], []
+            # 3. Calculate avg validation accuracy/uar over all selected users at every epoch
+            validation_acc, validation_uar, validation_loss, local_num_sampels = [], [], [], []
             validate_result = {}
             global_model.eval()
+
+            # 3.1 Iterate each client at the current global round, calculate the performance
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
                 local_model = LocalUpdate(args=args, dataset=train_speaker_dict[speaker_id], 
@@ -336,27 +349,31 @@ if __name__ == '__main__':
                                           train_validation_idx_dict=train_validation_idx_dict[speaker_id])
                 acc_score, rec_score, loss, num_sampels = local_model.inference(model=global_model)
                 
+                # save validation accuracy, uar, and loss
                 local_num_sampels.append(num_sampels)
-                list_acc.append(acc_score)
-                list_rec.append(rec_score)
-                list_loss.append(loss)
+                validation_acc.append(acc_score)
+                validation_uar.append(rec_score)
+                validation_loss.append(loss)
 
                 del local_model
             
+            # 3.2 Re-Calculate weigted performance scores
             weighted_acc, weighted_rec = 0, 0
             total_num_samples = np.sum(local_num_sampels)
-            for acc_idx in range(len(list_acc)):
-                weighted_acc += list_acc[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
-                weighted_rec += list_rec[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
+            for acc_idx in range(len(validation_acc)):
+                weighted_acc += validation_acc[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
+                weighted_rec += validation_uar[acc_idx] * (local_num_sampels[acc_idx] / total_num_samples)
             validate_result['acc'] = weighted_acc
             validate_result['rec'] = weighted_rec
-            validate_result['loss'] = np.mean(list_loss)
+            validate_result['loss'] = np.mean(validation_loss)
             
-            # perform the training, validate, and test
+            # 4. Perform the test on holdout set
             test_result_dict = test(global_model, device, dataloader_test, criterion, epoch, args)
 
-            # save the results for later
+            # 5. Save the results for later
             result_dict[epoch] = {}
+            result_dict[epoch]['train'] = {}
+            result_dict[epoch]['train']['loss'] = {}
             result_dict[epoch]['validate'] = validate_result
             result_dict[epoch]['test'] = test_result_dict
             
@@ -370,55 +387,37 @@ if __name__ == '__main__':
                 best_model = deepcopy(global_model.state_dict())
                 best_dict = test_result_dict.copy()
             
+            # Some print out
             print('best epoch %d, best final acc %.2f, best val acc %.2f' % (best_epoch, final_acc*100, best_val_acc*100))
             print('best epoch %d, best final rec %.2f, best val rec %.2f' % (best_epoch, final_recall*100, best_val_recall*100))
-            # pdb.set_trace()
             print(best_dict[args.dataset]['conf'][args.pred])
 
-            f = open(str(model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl')), "wb")
-            pickle.dump(gradient_hist_dict, f)
-            f.close()
-
-        row_df = pd.DataFrame(index=[save_row_str])
-        row_df['acc'] = best_dict[args.dataset]['acc'][args.pred]
-        row_df['rec'] = best_dict[args.dataset]['rec'][args.pred]
-        row_df['epoch'] = best_epoch
-        row_df['dataset'] = args.dataset
+        # Performance save code
+        row_df = save_result_df(save_row_str, best_dict[args.dataset]['acc'][args.pred], best_dict[args.dataset]['rec'][args.pred], best_epoch, args.dataset)
         save_result_df = pd.concat([save_result_df, row_df])
-        
         if len(dataset_list) > 1:
             for dataset in dataset_list:
-                row_df = pd.DataFrame(index=[save_row_str])
-                row_df['acc'] = best_dict[dataset]['acc'][args.pred]
-                row_df['rec'] = best_dict[dataset]['rec'][args.pred]
-                row_df['epoch'] = best_epoch
-                row_df['dataset'] = dataset
+                row_df = save_result_df(save_row_str, best_dict[dataset]['acc'][args.pred], best_dict[dataset]['rec'][args.pred], best_epoch, dataset)
                 save_result_df = pd.concat([save_result_df, row_df])
-            
+
+        model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
+        Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
+        save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
+        
+        # Save best model and training history
         torch.save(best_model, str(model_result_path.joinpath('model.pt')))
         f = open(str(model_result_path.joinpath('results.pkl')), "wb")
         pickle.dump(result_dict, f)
         f.close()
 
-        model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
-        Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
-        save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
-
-    row_df = pd.DataFrame(index=['average'])
+    # Calculate the average of the 5-fold experiments
     tmp_df = save_result_df.loc[save_result_df['dataset'] == args.dataset]
-    row_df['acc'] = np.mean(tmp_df['acc'])
-    row_df['rec'] = np.mean(tmp_df['rec'])
-    row_df['epoch'] = best_epoch
-    row_df['dataset'] = args.dataset
+    row_df = save_result_df('average', np.mean(tmp_df['acc']), np.mean(tmp_df['uar']), best_epoch, args.dataset)
     save_result_df = pd.concat([save_result_df, row_df])
     
     if len(dataset_list) > 1:
         for dataset in dataset_list:
             tmp_df = save_result_df.loc[save_result_df['dataset'] == dataset]
-            row_df = pd.DataFrame(index=['average'])
-            row_df['acc'] = np.mean(tmp_df['acc'])
-            row_df['rec'] = np.mean(tmp_df['rec'])
-            row_df['epoch'] = best_epoch
-            row_df['dataset'] = dataset
+            row_df = save_result_df('average', np.mean(tmp_df['acc']), np.mean(tmp_df['uar']), best_epoch, dataset)
             save_result_df = pd.concat([save_result_df, row_df])
     save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
