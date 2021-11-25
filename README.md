@@ -1,2 +1,2 @@
 # Information leakage of SER application in Federated Learning
-This repository contains the official implementation (in PyTorch) of Attribute Inference Attack of SpeechEmotion Recognition in Federated Learning.
+This repository contains the official implementation (in PyTorch) of Attribute Inference Attack of Speech Emotion Recognition in Federated Learning.
