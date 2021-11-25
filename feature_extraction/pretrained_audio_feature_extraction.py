@@ -30,14 +30,13 @@ def pretrained_feature(audio):
         with torch.inference_mode():
             features, _ = model.extract_features(audio)
         for idx in range(len(features)): save_feature.append(np.mean(features[idx].detach().cpu().numpy(), axis=1))
-    elif args.feature_type == 'distilhubert' or args.feature_type == 'wav2vec2':
+    elif args.feature_type == 'distilhubert' or args.feature_type == 'wav2vec2' or args.feature_type == 'vq_wav2vec':
         features = model([audio[0]])['last_hidden_state']
         save_feature.append(np.mean(features.detach().cpu().numpy(), axis=1))
         save_feature.append(np.std(features.detach().cpu().numpy(), axis=1))
         save_feature.append(np.max(features.detach().cpu().numpy(), axis=1))
     elif args.feature_type == 'cpc':
         features = model([audio[0]])['last_hidden_state']
-        # for idx in range(len(features['hidden_states'])): save_feature.append(np.mean(features['hidden_states'][idx].detach().cpu().numpy(), axis=1))
         save_feature.append(np.mean(features.detach().cpu().numpy(), axis=1))
         save_feature.append(np.std(features.detach().cpu().numpy(), axis=1))
         save_feature.append(np.max(features.detach().cpu().numpy(), axis=1))
@@ -80,6 +79,8 @@ if __name__ == '__main__':
         model = getattr(hub, 'modified_cpc')()
     elif args.feature_type == 'vq_apc':
         model = getattr(hub, 'vq_apc')()
+    elif args.feature_type == 'vq_wav2vec':
+        model = getattr(hub, 'vq_wav2vec')()
     elif args.feature_type == 'mockingjay':
         model = getattr(hub, 'mockingjay')()
     elif args.feature_type == 'apc':
