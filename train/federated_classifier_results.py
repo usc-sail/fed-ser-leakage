@@ -1,46 +1,13 @@
-import torch
-import torch.nn as nn
-import argparse
-import torch.multiprocessing
-from copy import deepcopy
-from torch.nn.modules import dropout
-from torch.utils.data import DataLoader, dataset
-from re import L
-
-import numpy as np
-import torch
-import pickle
 from pathlib import Path
 import pandas as pd
-import copy
-import torch.nn.functional as F
 
 import sys, os
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
-from training_tools import EarlyStopping, ReturnResultDict
-from training_tools import setup_seed
-from baseline_models import dnn_classifier
-from update import LocalUpdate, average_weights, average_gradients, DatasetSplit
-
 import pdb
 
-# define label mapping
-emo_dict = {'neu': 0, 'hap': 1, 'sad': 2, 'ang': 3}
-affect_dict = {'low': 0, 'med': 1, 'high': 2}
-gender_dict = {'F': 0, 'M': 1}
-
-# define speaker mapping
-speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1), 
-                       'crema-d': np.arange(1001, 1092, 1),
-                       'iemocap': np.arange(0, 10, 1)}
-
-feature_len_dict = {'emobase': 988, 'ComParE': 6373, 'wav2vec': 9216, 
-                    'apc': 512, 'distilhubert': 768, 'tera': 768, 'wav2vec2': 768,
-                    'decoar2': 768, 'cpc': 256, 'audio_albert': 768, 
-                    'mockingjay': 768, 'npc': 512, 'vq_apc': 512, 'vq_wav2vec': 512}
-
+# define feature name mapping
 data_name_dict = {'emobase': 'Emo-Base', 'ComParE': 6373, 'wav2vec': 9216, 
                   'apc': 'APC', 'distilhubert': 'DistilHuBERT', 'tera': 'Tera', 'wav2vec2': 768,
                   'decoar2': 'DeCoAR 2.0', 'cpc': 256, 'audio_albert': 768, 
@@ -48,9 +15,6 @@ data_name_dict = {'emobase': 'Emo-Base', 'ComParE': 6373, 'wav2vec': 9216,
 
 
 if __name__ == '__main__':
-
-    torch.cuda.empty_cache() 
-    torch.multiprocessing.set_sharing_strategy('file_system')
 
     # argument parser
     parser = argparse.ArgumentParser(add_help=False)
@@ -67,8 +31,6 @@ if __name__ == '__main__':
     parser.add_argument('--pred', default='emotion')
 
     args = parser.parse_args()
-    setup_seed(8)
-
     root_path = Path('/media/data/projects/speech-privacy')
     pred = 'affect' if args.pred == 'arousal' or args.pred == 'valence' else 'emotion'
     
