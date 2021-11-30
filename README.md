@@ -21,11 +21,11 @@ Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) |
 
 Let's recap the basic of the FL. 
 
-#### 1. In a typical FL training round shown in the figure below, a subset of selected clients receive a global model, which they can locally train with their private data. 
+1. In a typical FL training round shown in the figure below, a subset of selected clients receive a global model, which they can locally train with their private data. 
 
-#### 2. Afterward, the clients only share their model updates (model parameters/gradients) to the central server. 
+2. Afterward, the clients only share their model updates (model parameters/gradients) to the central server. 
 
-#### 3. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
+3. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
 
 
 ![Alt text](model/fl_global.png?raw=true "Federated Learning")
