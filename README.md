@@ -17,6 +17,9 @@ Publication Date | Model | Name | Paper | Input | Stride | Pre-train Data | Offi
 1 Nov 2020 | NPC | npc | [arxiv](https://arxiv.org/abs/2011.00406) | Mel | 10ms | [LibriSpeech-360](http://www.openslr.org/12) | [NPC](https://github.com/Alexander-H-Liu/NPC)
 Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) | Mel | 10ms | [LibriSpeech-960](http://www.openslr.org/12) | [speech-representations](https://github.com/awslabs/speech-representations)
 
+## Federated Learning - SER results
+
+Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. The feature sets include Emo-Base obtained from the OpenSMILE toolkit and APC, Vq-APC, Tera, NPC, and DeCoAR 2.0 computed using pre-trained models.
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
