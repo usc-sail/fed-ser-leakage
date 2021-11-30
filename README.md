@@ -18,7 +18,7 @@ Publication Date | Model | Name | Paper | Input | Stride | Pre-train Data | Offi
 Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) | Mel | 10ms | [LibriSpeech-960](http://www.openslr.org/12) | [speech-representations](https://github.com/awslabs/speech-representations)
 
 
-![Alt text](/results/fl_result.png?raw=true "Federated Learning - SER results")
+![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
 
 ## Referecences
