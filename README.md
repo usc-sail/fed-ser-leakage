@@ -26,15 +26,15 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ## Attack framework
 
-We consider the attack in two scenarios:
+Let's recap the basic of the FL. In a typical FL training round shown in the figure below, a subset of selected clients receive a global model, which they can locally train with their private data. Afterward, the clients only share their model updates (model parameters/gradients) to the central server. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
+
+
+![Alt text](model/fl_global.png?raw=true "Federated Learning")
+
+We consider two common scenarios in FL:
 
 1. FedSGD
 
-```
-\begin{equation}
-    \mathbf{\theta^{t+1}} = \mathbf{\theta^{t}} - \sum_{k}^{K}\frac{n_{k}}{N}{\mathbf{{g}_{i}^{t}}}
-\end{equation}
-```
 
 ## Referecences
 
