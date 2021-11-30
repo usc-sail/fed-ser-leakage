@@ -34,9 +34,9 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 We consider two common scenarios in FL:
 
-1. FedSGD: ![Alt text](model/fed_sgd.png?raw=true "FedSGD")
+1. FedSGD: ![Alt text](model/fed_sgd.png?raw=true "FedSGD"){:height="50%" width="50%"}
 
-2. FedAvg: ![Alt text](model/fed_avg.png?raw=true "FedAvg")
+2. FedAvg: ![Alt text](model/fed_avg.png?raw=true "FedAvg"){:height="50%" width="50%"}
 
 
 ## Referecences
