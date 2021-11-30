@@ -19,6 +19,12 @@ Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) |
 
 ## Federated Learning - SER results
 
+Let's recap the basic of the FL. In a typical FL training round shown in the figure below, a subset of selected clients receive a global model, which they can locally train with their private data. Afterward, the clients only share their model updates (model parameters/gradients) to the central server. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
+
+
+![Alt text](model/fl_global.png?raw=true "Federated Learning")
+
+
 Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. 
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
@@ -26,14 +32,11 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ## Attack framework
 
-Let's recap the basic of the FL. In a typical FL training round shown in the figure below, a subset of selected clients receive a global model, which they can locally train with their private data. Afterward, the clients only share their model updates (model parameters/gradients) to the central server. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
-
-
-![Alt text](model/fl_global.png?raw=true "Federated Learning")
-
 We consider two common scenarios in FL:
 
-1. FedSGD
+1. FedSGD: ![Alt text](model/fed_sgd.png?raw=true "FedSGD")
+
+2. FedAvg: ![Alt text](model/fed_avg.png?raw=true "FedAvg")
 
 
 ## Referecences
