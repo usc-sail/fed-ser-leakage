@@ -36,11 +36,11 @@ We consider two common scenarios in FL:
 
 1. FedSGD: 
 
-<center><img src="model/fed_sgd.png" width="200"></center>
+<p align="center"><img src="model/fed_sgd.png" width="200"></p>
 
 2. FedAvg: 
 
-<center><img src="model/fed_avg.png" width="200"></center>
+<p align="center"><img src="model/fed_avg.png" width="200"></p>
 
 
 ## Referecences
