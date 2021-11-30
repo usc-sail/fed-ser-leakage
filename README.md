@@ -30,6 +30,16 @@ Let's recap the basic of the FL.
 
 ![Alt text](model/fl_global.png?raw=true "Federated Learning")
 
+Two common scenarios in FL are:
+
+#### 1. FedSGD (gradients are shared): 
+
+<p align="center"><img src="model/fed_sgd.png" width="200"></p>
+
+#### 2. FedAvg (model parameters are shared): 
+
+<p align="center"><img src="model/fed_avg.png" width="200"></p>
+
 
 Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. 
 
@@ -38,15 +48,6 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ## Attack framework
 
-We consider two common scenarios in FL:
-
-#### 1. FedSGD: 
-
-<p align="center"><img src="model/fed_sgd.png" width="200"></p>
-
-#### 2. FedAvg: 
-
-<p align="center"><img src="model/fed_avg.png" width="200"></p>
 
 
 ## Referecences
