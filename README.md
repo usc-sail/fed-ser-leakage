@@ -19,10 +19,22 @@ Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) |
 
 ## Federated Learning - SER results
 
-Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. The feature sets include Emo-Base obtained from the OpenSMILE toolkit and APC, Vq-APC, Tera, NPC, and DeCoAR 2.0 computed using pre-trained models.
+Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. 
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
+
+## Attack framework
+
+We consider the attack in two scenarios:
+
+1. FedSGD
+
+```
+\begin{equation}
+    \mathbf{\theta^{t+1}} = \mathbf{\theta^{t}} - \sum_{k}^{K}\frac{n_{k}}{N}{\mathbf{{g}_{i}^{t}}}
+\end{equation}
+```
 
 ## Referecences
 
