@@ -17,6 +17,137 @@ Publication Date | Model | Name | Paper | Input | Stride | Pre-train Data | Offi
 1 Nov 2020 | NPC | npc | [arxiv](https://arxiv.org/abs/2011.00406) | Mel | 10ms | [LibriSpeech-360](http://www.openslr.org/12) | [NPC](https://github.com/Alexander-H-Liu/NPC)
 Dec 11 2020 | DeCoAR 2.0 | decoar2 | [arxiv](https://arxiv.org/abs/2012.06659) | Mel | 10ms | [LibriSpeech-960](http://www.openslr.org/12) | [speech-representations](https://github.com/awslabs/speech-representations)
 
+```
+
+\begin{tabular}{ccccccccccccc}
+    
+    \toprule
+    & 
+    \multicolumn{6}{c}{\textbf{FedSGD}} &
+    \multicolumn{6}{c}{\textbf{FedAvg}}
+    \rule{0pt}{2.25ex} \\ \cmidrule(lr){2-7} \cmidrule(lr){8-13}
+    
+    
+    \textbf{Speech Feature} & 
+    \multicolumn{2}{c}{\textbf{IEMOCAP}$\mathbf{(D_{p})}$} &
+    \multicolumn{2}{c}{\textbf{CREMA-D}$\mathbf{(D_{p})}$} &
+    \multicolumn{2}{c}{\textbf{MSP-Improv}$\mathbf{(D_{p})}$} &
+    \multicolumn{2}{c}{\textbf{IEMOCAP}$\mathbf{(D_{p})}$} &
+    \multicolumn{2}{c}{\textbf{CREMA-D}$\mathbf{(D_{p})}$} &
+    \multicolumn{2}{c}{\textbf{MSP-Improv}$\mathbf{(D_{p})}$}
+    \rule{0pt}{2.25ex} \\ % \cline{2-13}
+    
+    
+    &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}} &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}} &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}} &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}} &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}} &
+    {\textbf{Acc}} & 
+    {\textbf{UAR}}
+    \rule{0pt}{2.25ex} \\ \cmidrule(lr){1-1} \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+    
+    \textbf{Emo-Base} &
+    63.28\% & 
+    61.96\% & 
+    70.57\% & 
+    61.86\% & 
+    54.14\% & 
+    46.01\% & 
+    61.42\% & 
+    61.65\% & 
+    71.12\% & 
+    64.41\% & 
+    53.42\% & 
+    47.35\% 
+    \rule{0pt}{2.25ex} \\
+    
+    \textbf{APC} &
+    63.72\% & 
+    $\mathbf{63.56\%}$ & 
+    68.88\% & 
+    64.15\% & 
+    54.70\% & 
+    47.86\% & 
+    $\mathbf{64.81\%}$ & 
+    $\mathbf{62.97\%}$ & 
+    72.35\% & 
+    64.39\% & 
+    56.69\% & 
+    50.26\% 
+    \rule{0pt}{2.25ex} \\
+    
+    \textbf{Vq-APC} &
+    61.44\% & 
+    59.57\% & 
+    70.96\% & 
+    64.67\% & 
+    55.97\% & 
+    49.31\% & 
+    62.20\% & 
+    61.53\% & 
+    74.02\% & 
+    67.48\% & 
+    56.88\% & 
+    48.83\% 
+    \rule{0pt}{2.25ex} \\
+    
+    \textbf{NPC} &
+    61.93\% & 
+    59.75\% & 
+    69.31\% & 
+    60.59\% & 
+    53.89\% & 
+    45.91\% & 
+    61.81\% & 
+    55.14\% & 
+    71.25\% & 
+    63.26\% & 
+    53.43\% & 
+    42.85\% 
+    \rule{0pt}{2.25ex} \\
+    
+    \textbf{DeCoAR 2.0} &
+    $\mathbf{63.99\%}$ & 
+    62.88\% & 
+    72.27\% & 
+    65.62\% & 
+    56.69\% & 
+    49.54\% & 
+    62.93\% & 
+    61.71\% & 
+    73.61\% & 
+    65.00\% & 
+    56.46\% & 
+    50.49\% 
+    \rule{0pt}{2.25ex} \\
+    
+    \textbf{Tera} &
+    63.25\% & 
+    60.65\% & 
+    $\mathbf{72.28\%}$ & 
+    $\mathbf{66.19\%}$ & 
+    $\mathbf{57.49\%}$ & 
+    $\mathbf{52.13\%}$ & 
+    64.34\% & 
+    62.38\% & 
+    $\mathbf{74.32\%}$ & 
+    $\mathbf{67.12\%}$ & 
+    $\mathbf{57.54\%}$ & 
+    $\mathbf{52.37\%}$
+    \rule{0pt}{2.25ex} \\ \bottomrule
+    
+    
+\end{tabular}
+    
+```
+
 
 ## Referecences
 
