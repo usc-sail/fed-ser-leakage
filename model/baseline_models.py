@@ -57,7 +57,8 @@ class dnn_classifier(nn.Module):
 
         x = self.dense2(x)
         x = self.dense_relu2(x)
-        x = self.dropout(x)
+        # we set the dropout 
+        x = nn.Dropout(p=0.2)(x)
 
         preds = self.pred_layer(x)
         
@@ -77,20 +78,19 @@ class attack_model(nn.Module):
         if feature_type == 'wav2vec':
             first_layer_feat_size = 1408
         elif feature_type == 'emobase':
-            first_layer_feat_size = 2752
-            # first_layer_feat_size = 7936
-            stride_len = 6
+            first_layer_feat_size = 3840+256
+            stride_len = 8
         elif feature_type == 'ComParE':
             first_layer_feat_size = 1152
         elif feature_type == 'cpc':
             first_layer_feat_size = 4352
             stride_len = 4
         elif feature_type == 'apc' or feature_type == 'npc' or feature_type == 'vq_apc':
-            first_layer_feat_size = 1600
+            first_layer_feat_size = 3200+256
             stride_len = 6
         else:
-            first_layer_feat_size = 1920+256
-            stride_len = 6
+            first_layer_feat_size = 3072+256
+            stride_len = 8
         
         self.conv0 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
@@ -100,7 +100,7 @@ class attack_model(nn.Module):
 
             nn.Conv2d(16, 32, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=stride_len, stride=(stride_len, stride_len)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p),
             
             nn.Conv2d(32, 64, kernel_size=5, padding=2),
@@ -118,13 +118,13 @@ class attack_model(nn.Module):
 
             nn.Conv2d(16, 32, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=5, stride=(5, 5)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p),
 
             nn.Conv2d(32, 64, kernel_size=5, padding=2),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=5, stride=(5, 5)),
+            nn.MaxPool2d(kernel_size=4, stride=(4, 4)),
             nn.Dropout2d(self.dropout_p)
         )
 
@@ -136,24 +136,24 @@ class attack_model(nn.Module):
 
             nn.Conv2d(16, 32, kernel_size=5, padding=2),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(2, 4)),
+            nn.MaxPool2d(kernel_size=2, stride=(1, 4)),
             nn.Dropout2d(self.dropout_p),
 
             nn.Conv2d(32, 64, kernel_size=5, padding=2),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=(2, 4)),
+            nn.MaxPool2d(kernel_size=2, stride=(1, 4)),
             nn.Dropout2d(self.dropout_p),
         )
 
         if self.leak_layer == 'full':
-            self.dense1 = nn.Linear(first_layer_feat_size+384*2+516, 256)
+            self.dense1 = nn.Linear(first_layer_feat_size+768+516, 256)
         elif self.leak_layer == 'first':
             self.dense1 = nn.Linear(first_layer_feat_size, 256)
         elif self.leak_layer == 'second':
-            self.dense1 = nn.Linear(768, 256)
+            self.dense1 = nn.Linear(2176, 256)
         else:
-            self.dense1 = nn.Linear(516, 256)
+            self.dense1 = nn.Linear(1028, 256)
 
         self.dense2 = nn.Linear(256, 128)
         self.dropout = nn.Dropout(p=self.dropout_p)
@@ -208,7 +208,7 @@ class attack_model(nn.Module):
             w1 = self.conv1(w1.float())
             w1_size = w1.size()
             w1 = w1.reshape(-1, w1_size[1]*w1_size[2]*w1_size[3])
-            z = torch.cat((w1, b1), 1)
+            z = torch.cat((w1, b1.squeeze(dim=1)), 1)
 
             # pdb.set_trace()
         else:
