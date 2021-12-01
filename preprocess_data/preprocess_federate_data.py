@@ -163,8 +163,8 @@ if __name__ == '__main__':
                 elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                     save_data = np.array(data['data'])[0]
                 else:
-                    # save_data = np.array(data['data'])[-1, 0, :]
-                    save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
+                    # the global average
+                    save_data = np.array(data['data'])[0, 0, :].flatten()
 
                 if args.pred == 'emotion': 
                     if label != 'oth':
@@ -215,8 +215,10 @@ if __name__ == '__main__':
                     elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                         save_data = np.array(data['data'])[0]
                     else:
-                        save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
+                        # save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
                         # save_data = np.array(data['data'])[-1, 0, :]
+                        save_data = np.array(data['data'])[0, 0, :].flatten()
+
                     # pdb.set_trace()
                     
                     # pdb.set_trace()
@@ -262,7 +264,8 @@ if __name__ == '__main__':
                                     save_data = np.array(data['data'])[0]
                                 else:
                                     # save_data = np.array(data['data'])[-1, 0, :]
-                                    save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
+                                    # save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
+                                    save_data = np.array(data['data'])[0, 0, :].flatten()
                                 
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
