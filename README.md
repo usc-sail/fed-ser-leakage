@@ -67,6 +67,12 @@ Our attack model architecture is shown below:
 
 <p align="center"><img src="model/attack_model.png"></p>
 
+## So how easy is the attack?
+
+The short answer is to infer gender of the client using the shared model updates is a trivial task both in both FedSGD and FedAvg.
+
+<p align="center"><img src="results/attack_result.png"></p>
+
 
 ## Referecences
 
