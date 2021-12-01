@@ -52,7 +52,20 @@ Our attack framework mimics the attack framework commonly used in the membership
 
 <p align="center"><img src="model/attack_framework.png"></p>
 
-#### 1. 
+#### 1. Shadow Training
+
+The idea of the shadow training is to mimic the private training. Here, we train each shadow model with the same hyperparameters used in the private FL training. We train 5 shadow models in our experiment.
+
+
+#### 2. Constructing attack training data set
+
+Here, we construct our attack training data set using the gradients input data and the client's gender label. We pick 80% of the data as training, and rest as validation. The test set are the shared model updates generated in the private training, and the attack model aims to predict the gender label of the client in the private training data set.
+
+#### 3. Attack model
+
+Our attack model architecture is shown below: 
+
+<p align="center"><img src="model/attack_model.png"></p>
 
 
 ## Referecences
