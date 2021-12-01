@@ -48,6 +48,9 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ## Attack framework
 
+Our attack framework mimics the attack framework commonly used in the membership inference attack (MIA). The attack framework consists of training shadow models, forming attack trianing data set, and training the attack model as shown below.
+
+<p align="center"><img src="model/attack_framework.png"></p>
 
 
 ## Referecences
