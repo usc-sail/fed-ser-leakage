@@ -41,7 +41,7 @@ Two common scenarios in FL are:
 <p align="center"><img src="model/fed_avg.png" width="200"></p>
 
 
-Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. 
+Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. In the baseline experiment, we set the learning rate as 0.05 and 0.0005 in FedSGD and FedAvg, respectively. The local batch size is 20, and global training epoch is set to 200. 10% of the clients participant in each global training epoch.
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
@@ -51,6 +51,8 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 Our attack framework mimics the attack framework commonly used in the membership inference attack (MIA). The attack framework consists of training shadow models, forming attack trianing data set, and training the attack model as shown below.
 
 <p align="center"><img src="model/attack_framework.png"></p>
+
+#### 1. 
 
 
 ## Referecences
