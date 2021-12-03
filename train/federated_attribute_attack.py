@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 from training_tools import ReturnResultDict, EarlyStopping
 from training_tools import setup_seed
 from baseline_models import attack_model
+from pytorch_lightning import seed_everything
 
 from sklearn.model_selection import train_test_split
 
@@ -31,8 +32,11 @@ gender_dict = {'F': 0, 'M': 1}
 speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1), 
                        'crema-d': np.arange(1001, 1092, 1),
                        'iemocap': np.arange(0, 10, 1)}
+                       
 leak_layer_dict = {'full': ['w0', 'b0', 'w1', 'b1', 'w2', 'b2'],
                    'first': ['w0', 'b0'], 'second': ['w1', 'b1'], 'last': ['w2', 'b2']}
+
+leak_layer_idx_dict = {'w0': 0, 'w1': 2, 'w2': 4, 'b0': 1, 'b1': 3, 'b2': 5}
 
 class WeightDataGenerator():
     def __init__(self, dict_keys, data_dict = None):
@@ -209,21 +213,15 @@ if __name__ == '__main__':
     parser.add_argument('--device', default='1')
     parser.add_argument('--win_len', default=200)
     parser.add_argument('--optimizer', default='sgd')
-    parser.add_argument('--shift', default=1)
     parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')
     parser.add_argument('--leak_layer', default='full')
     parser.add_argument('--dropout', default=0.2)
-
     args = parser.parse_args()
-    shift = 'shift' if int(args.shift) == 1 else 'without_shift'
     
-    setup_seed(8)
-    torch.manual_seed(8)
+    seed_everything(8, workers=True)
 
     root_path = Path('/media/data/projects/speech-privacy')
-    pred = 'affect' if args.pred == 'arousal' or args.pred == 'valence' else 'emotion'
-    
     save_result_df = pd.DataFrame()
     device = torch.device("cuda:"+str(args.device)) if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
@@ -232,14 +230,12 @@ if __name__ == '__main__':
     model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
     model_setting_str += '_lr_' + str(args.learning_rate)[2:]
     
-    weight_file_list = []
+    # normalization
     weight_norm_mean_dict, weight_norm_std_dict = {}, {}
     weight_sum, weight_sum_square = {}, {}
     for key in ['w0', 'w1', 'w2', 'b0', 'b1', 'b2']:
-        weight_norm_mean_dict[key] = []
-        weight_norm_std_dict[key] = []
-        weight_sum[key] = 0
-        weight_sum_square[key] = 0
+        weight_norm_mean_dict[key], weight_norm_std_dict[key] = 0, 0
+        weight_sum[key], weight_sum_square[key] = 0, 0
 
     shadow_training_sample_size = 0
     shadow_data_dict = {}
@@ -247,7 +243,6 @@ if __name__ == '__main__':
         for epoch in range(int(args.num_epochs)):
             adv_federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
             weight_file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
-            weight_file_list.append(weight_file_str)
             # if shadow_idx == 0 and epoch < 10:
             if epoch % 20 == 0:
                 print('reading shadow model %d, epoch %d' % (shadow_idx, epoch))
@@ -255,38 +250,28 @@ if __name__ == '__main__':
                 adv_fed_weight_hist_dict = pickle.load(f)
             for speaker_id in adv_fed_weight_hist_dict:
                 gradients = adv_fed_weight_hist_dict[speaker_id]['gradient']
+                gender = adv_fed_weight_hist_dict[speaker_id]['gender']
                 shadow_training_sample_size += 1
                 
                 # calculate running stats for computing std and mean
+                shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
+                shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = gender
+                
+                for layer_name in leak_layer_idx_dict:
+                    weight_sum[layer_name] += gradients[leak_layer_idx_dict[layer_name]]
+                    weight_sum_square[layer_name] += gradients[leak_layer_idx_dict[layer_name]]**2
+                    
                 if args.leak_layer == 'first':
-                    weight_sum['w0'] += gradients[0]
-                    weight_sum['b0'] += gradients[1]
-                    weight_sum_square['w0'] += gradients[0]**2
-                    weight_sum_square['b0'] += gradients[1]**2
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w0'] = gradients[0]
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b0'] = gradients[1]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = adv_fed_weight_hist_dict[speaker_id]['gender']
                 elif args.leak_layer == 'second':
-                    weight_sum['w1'] += gradients[2]
-                    weight_sum['b1'] += gradients[3]
-                    weight_sum_square['w1'] += gradients[2]**2
-                    weight_sum_square['b1'] += gradients[3]**2
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w1'] = gradients[2]
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b1'] = gradients[3]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = adv_fed_weight_hist_dict[speaker_id]['gender']
                 else:
-                    weight_sum['w2'] += gradients[4]
-                    weight_sum['b2'] += gradients[5]
-                    weight_sum_square['w2'] += gradients[4]**2
-                    weight_sum_square['b2'] += gradients[5]**2
-                
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w2'] = gradients[4]
                     shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b2'] = gradients[5]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = adv_fed_weight_hist_dict[speaker_id]['gender']
 
+    # calculate std and mean
     for key in leak_layer_dict[args.leak_layer]:
         weight_norm_mean_dict[key] = weight_sum[key] / shadow_training_sample_size
         tmp_data = weight_sum_square[key] / shadow_training_sample_size - (weight_sum[key] / shadow_training_sample_size)**2
@@ -364,20 +349,17 @@ if __name__ == '__main__':
                 test_fed_weight_hist_dict = pickle.load(f)
             for speaker_id in test_fed_weight_hist_dict:
                 gradients = test_fed_weight_hist_dict[speaker_id]['gradient']
-
+                test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                 if args.leak_layer == 'first':
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w0'] = gradients[0]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b0'] = gradients[1]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
 
                 elif args.leak_layer == 'second':
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w1'] = gradients[2]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b1'] = gradients[3]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
                 else:
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w2'] = gradients[4]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b2'] = gradients[5]
                     test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
