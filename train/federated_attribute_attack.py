@@ -25,17 +25,10 @@ from sklearn.model_selection import train_test_split
 
 import pdb
 
-emo_dict = {'neu': 0, 'hap': 1, 'sad': 2, 'ang': 3}
-affect_dict = {'low': 0, 'med': 1, 'high': 2}
-
+# some general mapping for this script
 gender_dict = {'F': 0, 'M': 1}
-speaker_id_arr_dict = {'msp-improv': np.arange(0, 12, 1), 
-                       'crema-d': np.arange(1001, 1092, 1),
-                       'iemocap': np.arange(0, 10, 1)}
-                       
 leak_layer_dict = {'full': ['w0', 'b0', 'w1', 'b1', 'w2', 'b2'],
                    'first': ['w0', 'b0'], 'second': ['w1', 'b1'], 'last': ['w2', 'b2']}
-
 leak_layer_idx_dict = {'w0': 0, 'w1': 2, 'w2': 4, 'b0': 1, 'b1': 3, 'b2': 5}
 
 class WeightDataGenerator():
