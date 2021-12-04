@@ -27,4 +27,16 @@ python3 federated_ser_classifier.py --dataset iemocap --local_epochs 5 --learnin
 
 - The arg `learning_rate` specifies the learning rate in FL.
 
+### This the code that average the gradients in fed_sgd
+```
+global_gradients = average_gradients(local_updates, local_num_sampels)
+# 2.2 update global weights
+global_weights = copy.deepcopy(global_model.state_dict())
+global_weights_keys = list(global_weights.keys())
 
+for key_idx in range(len(global_weights_keys)):
+    key = global_weights_keys[key_idx]
+    global_weights[key] -= float(args.learning_rate)*global_gradients[key_idx].to(device)
+```
+### This the code that average the weights in fed_avg
+`global_weights = average_weights(local_updates, local_num_sampels)`
