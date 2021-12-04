@@ -28,7 +28,8 @@ python3 federated_ser_classifier.py --dataset iemocap --local_epochs 5 --learnin
 - The arg `learning_rate` specifies the learning rate in FL.
 
 ### This the code that average the gradients in fed_sgd
-```
+```python
+# 2.1 average global gradients
 global_gradients = average_gradients(local_updates, local_num_sampels)
 # 2.2 update global weights
 global_weights = copy.deepcopy(global_model.state_dict())
@@ -39,4 +40,25 @@ for key_idx in range(len(global_weights_keys)):
     global_weights[key] -= float(args.learning_rate)*global_gradients[key_idx].to(device)
 ```
 ### This the code that average the weights in fed_avg
-`global_weights = average_weights(local_updates, local_num_sampels)`
+
+```python 
+global_weights = average_weights(local_updates, local_num_sampels)
+```
+
+This is how we compute the psuedo gradient
+```python
+# 'fake' gradients saving code
+# iterate all layers in the classifier model
+original_model = copy.deepcopy(global_model).state_dict()
+
+# calculate how many updates per local epoch 
+local_update_per_epoch = int(train_sample_size / int(args.batch_size)) + 1
+    
+for key in original_model:
+    original_params = original_model[key].detach().clone().cpu().numpy()
+    update_params = local_update[key].detach().clone().cpu().numpy()
+    
+    # calculate 'fake' gradients
+    tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_epoch*int(args.local_epochs))
+    gradients.append(tmp_gradients)
+```
