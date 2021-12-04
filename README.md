@@ -69,21 +69,21 @@ Our attack model architecture is shown below:
 
 ## So how easy is the attack?
 
-The short answer is: inferring gender of the client using the shared model updates is a trivial task when training the SER model in both FedSGD and FedAvg.
+The short answer is: inferring gender (UAR score in the table) of the client using the shared model updates is a trivial task when training the SER model in both FedSGD and FedAvg.
 
 <p align="center"><img src="results/attack_result.png" width="450"></p>
 
 
 ## So which layer leaks most information in this attack?
 
-The short answer is: the shared updates between feature input and first dense layer.
+The short answer is: the shared updates between feature input and first dense layer (UAR score in the table).
 
 <p align="center"><img src="results/attack_layer_result.png"></p>
 
 
 ## So will the dropout decrease the attack performance?
 
-The short answer is: the increased dropout makes the attack stronger in this attack.
+The short answer is: the increased dropout makes the attack stronger in this attack (UAR score in the table).
 
 <p align="center"><img src="results/attack_dropout.png"></p>
 
