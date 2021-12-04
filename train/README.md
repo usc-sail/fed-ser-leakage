@@ -62,3 +62,18 @@ for key in original_model:
     tmp_gradients = (original_params - update_params)/(float(args.learning_rate)*local_update_per_epoch*int(args.local_epochs))
     gradients.append(tmp_gradients)
 ```
+
+### 1.3 Our model forward code, two dense layers, and output
+
+```python
+x = self.dense1(x)
+x = self.dense_relu1(x)
+x = self.dropout(x)
+
+x = self.dense2(x)
+x = self.dense_relu2(x)
+x = nn.Dropout(p=0.2)(x)
+
+preds = self.pred_layer(x)
+preds = torch.log_softmax(preds, dim=1)
+```
