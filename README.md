@@ -71,7 +71,7 @@ Our attack model architecture is shown below:
 
 The short answer is: inferring gender of the client using the shared model updates is a trivial task when training the SER model in both FedSGD and FedAvg.
 
-<p align="center"><img src="results/attack_result.png" width="400"></p>
+<p align="center"><img src="results/attack_result.png" width="600"></p>
 
 
 ## So which layer leaks most information in this attack?
