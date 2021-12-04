@@ -1,7 +1,7 @@
 # Training scripts
 The scripts under this folder trains the SER model in FL and attack model. 
 
-### SER training in FL
+### 1. SER training in FL
 The bash file federated_ser_classifier.sh provides an example of running the preprocess python file. e.g.:
 
 ```sh
@@ -27,7 +27,7 @@ python3 federated_ser_classifier.py --dataset iemocap --local_epochs 5 --learnin
 
 - The arg `learning_rate` specifies the learning rate in FL.
 
-### This the code that average the gradients in fed_sgd
+### 1.1 This the code that average the gradients in fed_sgd
 ```python
 # 2.1 average global gradients
 global_gradients = average_gradients(local_updates, local_num_sampels)
@@ -39,13 +39,13 @@ for key_idx in range(len(global_weights_keys)):
     key = global_weights_keys[key_idx]
     global_weights[key] -= float(args.learning_rate)*global_gradients[key_idx].to(device)
 ```
-### This the code that average the weights in fed_avg
+### 1.2 This the code that average the weights in fed_avg
 
 ```python 
 global_weights = average_weights(local_updates, local_num_sampels)
 ```
 
-This is how we compute the psuedo gradient
+### This is how we compute the psuedo gradient
 ```python
 # 'fake' gradients saving code
 # iterate all layers in the classifier model
