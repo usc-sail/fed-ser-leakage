@@ -191,17 +191,17 @@ if __name__ == '__main__':
         model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
         Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
 
-        log_path = Path.joinpath(model_result_csv_path, save_row_str, 'log')
+        log_path = Path.joinpath(model_result_path, 'log')
         if log_path.exists(): shutil.rmtree(log_path)
         Path.mkdir(log_path, parents=True, exist_ok=True)
         mlf_logger = MLFlowLogger(experiment_name="ser", save_dir=str(log_path))
         
         # trainer
         if args.model_type == 'fed_avg':
-            trainer = pl.Trainer(logger=mlf_logger, gpus=0, weights_summary=None, 
+            trainer = pl.Trainer(logger=mlf_logger, gpus=1, weights_summary=None, 
                                  progress_bar_refresh_rate=0, max_epochs=1)
         else:
-            trainer = pl.Trainer(logger=mlf_logger, gpus=0, weights_summary=None, 
+            trainer = pl.Trainer(logger=mlf_logger, gpus=1, weights_summary=None, 
                                  progress_bar_refresh_rate=0, max_epochs=1, limit_train_batches=1)
         
         # test loader
@@ -370,4 +370,6 @@ if __name__ == '__main__':
 
     # Calculate the average of the 5-fold experiments
     tmp_df = save_result_df.loc[save_result_df['dataset'] == args.dataset]
+    row_df = save_result('average', np.mean(tmp_df['acc']), np.mean(tmp_df['uar']), best_epoch, args.dataset)
+    save_result_df = pd.concat([save_result_df, row_df])
     save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
