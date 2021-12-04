@@ -1,11 +1,13 @@
 import torch
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import argparse
 import torch.multiprocessing
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from copy import deepcopy
-
+from torch.utils.data import DataLoader
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import MLFlowLogger
+import shutil
 import numpy as np
 import torch
 import pickle
@@ -16,11 +18,9 @@ import sys, os
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
-from training_tools import ReturnResultDict, EarlyStopping
-from training_tools import setup_seed
-from baseline_models import attack_model
+import pytorch_lightning as pl
+from attack_model import attack_model
 from pytorch_lightning import seed_everything
-
 from sklearn.model_selection import train_test_split
 
 import pdb
@@ -30,6 +30,7 @@ gender_dict = {'F': 0, 'M': 1}
 leak_layer_dict = {'full': ['w0', 'b0', 'w1', 'b1', 'w2', 'b2'],
                    'first': ['w0', 'b0'], 'second': ['w1', 'b1'], 'last': ['w2', 'b2']}
 leak_layer_idx_dict = {'w0': 0, 'w1': 2, 'w2': 4, 'b0': 1, 'b1': 3, 'b2': 5}
+
 
 class WeightDataGenerator():
     def __init__(self, dict_keys, data_dict = None):
@@ -41,145 +42,28 @@ class WeightDataGenerator():
 
     def __getitem__(self, idx):
 
-        w0 = []
-        b0 = []
-        w1 = []
-        b1 = []
-        w2 = []
-        b2 = []
-        gender = []
-
         data_file_str = self.dict_keys[idx]
-        if args.leak_layer == 'last':
-            tmp_data = (self.data_dict[data_file_str]['w2'] - weight_norm_mean_dict['w2']) / (weight_norm_std_dict['w2'] + 0.00001)
-            w2 = torch.from_numpy(np.ascontiguousarray(tmp_data))
-            tmp_data = (self.data_dict[data_file_str]['b2'] - weight_norm_mean_dict['b2']) / (weight_norm_std_dict['b2'] + 0.00001)
-            b2 = torch.from_numpy(np.ascontiguousarray(tmp_data))
-        elif args.leak_layer == 'second':
-            tmp_data = (self.data_dict[data_file_str]['w1'] - weight_norm_mean_dict['w1']) / (weight_norm_std_dict['w1'] + 0.00001)
-            w1 = torch.from_numpy(np.ascontiguousarray(tmp_data))
-            tmp_data = (self.data_dict[data_file_str]['b1'] - weight_norm_mean_dict['b1']) / (weight_norm_std_dict['b1'] + 0.00001)
-            b1 = torch.from_numpy(np.ascontiguousarray(tmp_data))
-        else:
-            tmp_data = (self.data_dict[data_file_str]['w0'] - weight_norm_mean_dict['w0']) / (weight_norm_std_dict['w0'] + 0.00001)
-            w0 = torch.from_numpy(np.ascontiguousarray(tmp_data))
-            tmp_data = (self.data_dict[data_file_str]['b0'] - weight_norm_mean_dict['b0']) / (weight_norm_std_dict['b0'] + 0.00001)
-            b0 = torch.from_numpy(np.ascontiguousarray(tmp_data))
         gender = gender_dict[self.data_dict[data_file_str]['gender']]
-        return w0, w1, w2, b0, b1, b2, gender
 
+        tmp_data = (self.data_dict[data_file_str][weight_name] - weight_norm_mean_dict[weight_name]) / (weight_norm_std_dict[weight_name] + 0.00001)
+        weights = torch.from_numpy(np.ascontiguousarray(tmp_data))
+        tmp_data = (self.data_dict[data_file_str][bias_name] - weight_norm_mean_dict[bias_name]) / (weight_norm_std_dict[bias_name] + 0.00001)
+        bias = torch.from_numpy(np.ascontiguousarray(tmp_data))
 
-def test(model, device, data_loader, epoch):
-    model.eval()
-    predict_dict, truth_dict = {}, {}
+        return weights, bias, gender
+
+class AttackDataModule(pl.LightningDataModule):
+    def __init__(self, train, val):
+        super().__init__()
+        self.train = train
+        self.val = val
+
+    def train_dataloader(self):
+        return DataLoader(self.train, batch_size=20, num_workers=0, shuffle=True)
+
+    def val_dataloader(self):
+        return DataLoader(self.val, batch_size=20, num_workers=0, shuffle=False)
     
-    predict_dict[args.dataset] = []
-    truth_dict[args.dataset] = []
-        
-    loss_list = []
-    for batch_idx, (w0, w1, w2, b0, b1, b2, labels) in enumerate(data_loader):
-    
-        if args.leak_layer == 'first':
-            w0 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w0]))
-            b0 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b0]))
-            w0, b0 = w0.to(device), b0.to(device)
-            w0, b0 = w0.float(), b0.float()
-            w0 = w0.unsqueeze(dim=1)
-        elif args.leak_layer == 'second':
-            w1 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w1]))
-            b1 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b1]))
-            w1, b1 = w1.to(device), b1.to(device)
-            w1, b1 = w1.float(), b1.float()
-            w1 = w1.unsqueeze(dim=1)
-        else:
-            w2 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w2]))
-            b2 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b2]))
-            w2, b2 = w2.to(device), b2.to(device)
-            w2, b2 = w2.float(), b2.float()
-            w2 = w2.unsqueeze(dim=1)
-        
-        labels = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in labels]))
-        labels = labels.to(device)
-
-        # Inference
-        preds = model(w0, w1, w2, b0, b1, b2)
-        _, predictions = torch.max(preds, 1)
-
-        # Prediction
-        # pdb.set_trace()
-        predictions = predictions.view(-1)
-        for pred_idx in range(len(preds)):
-            # predict_dict[args.dataset].append(predictions.detach().cpu().numpy()[pred_idx])
-            predict_dict[args.dataset].append(predictions.detach().cpu().numpy()[pred_idx])
-            truth_dict[args.dataset].append(labels.detach().cpu().numpy()[pred_idx])
-        
-        del w0, w1, w2, b0, b1, b2
-    
-    tmp_result_dict = ReturnResultDict(truth_dict, predict_dict, args.dataset, args.pred, mode='test', loss=None, epoch=epoch)
-    return tmp_result_dict
-
-
-def train(model, device, data_loader, epoch, mode='train'):
-    if mode == 'train':
-        model.train()
-    else:
-        model.eval()
-
-    predict_dict, truth_dict = {}, {}
-    
-    predict_dict[args.adv_dataset] = []
-    truth_dict[args.adv_dataset] = []
-        
-    loss_list = []
-    for batch_idx, (w0, w1, w2, b0, b1, b2, labels) in enumerate(data_loader):
-        if args.leak_layer == 'first':
-            w0 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w0]))
-            b0 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b0]))
-            w0, b0 = w0.to(device), b0.to(device)
-            w0, b0 = w0.float(), b0.float()
-            w0 = w0.unsqueeze(dim=1)
-        elif args.leak_layer == 'second':
-            w1 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w1]))
-            b1 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b1]))
-            w1, b1 = w1.to(device), b1.to(device)
-            w1, b1 = w1.float(), b1.float()
-            w1 = w1.unsqueeze(dim=1)
-        else:
-            w2 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in w2]))
-            b2 = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in b2]))
-            w2, b2 = w2.to(device), b2.to(device)
-            w2, b2 = w2.float(), b2.float()
-            w2 = w2.unsqueeze(dim=1)
-        
-        labels = torch.from_numpy(np.asarray([torch_tensor.numpy() for torch_tensor in labels]))
-        labels = labels.to(device)
-
-        # Inference
-        preds = model(w0, w1, w2, b0, b1, b2)
-        batch_loss = criterion(preds, labels.squeeze())
-        
-        if mode == 'train':
-            optimizer.zero_grad()
-            batch_loss.backward()
-            optimizer.step()
-        
-        loss_list.append(batch_loss.item())
-
-        # Prediction
-        _, predictions = torch.max(preds, 1)
-        predictions = predictions.view(-1)
-        for pred_idx in range(len(preds)):
-            predict_dict[args.adv_dataset].append(predictions.detach().cpu().numpy()[pred_idx])
-            truth_dict[args.adv_dataset].append(labels.detach().cpu().numpy()[pred_idx])
-        if batch_idx % 50 == 0:
-            print('%s epoch: %d, %.2f' % (mode, epoch, batch_idx / len(data_loader) * 100))
-        del w0, w1, w2, b0, b1, b2, preds
-        torch.cuda.empty_cache()
-
-    if mode != 'train':   
-        if args.optimizer == 'adam': scheduler.step(np.mean(loss_list))
-    tmp_result_dict = ReturnResultDict(truth_dict, predict_dict, args.adv_dataset, args.pred, mode=mode, loss=np.mean(loss_list), epoch=epoch)
-    return tmp_result_dict
 
 
 if __name__ == '__main__':
@@ -189,7 +73,6 @@ if __name__ == '__main__':
 
     # argument parser
     parser = argparse.ArgumentParser(add_help=False)
-    
     parser.add_argument('--dataset', default='iemocap')
     parser.add_argument('--adv_dataset', default='iemocap')
     parser.add_argument('--feature_type', default='apc')
@@ -215,7 +98,6 @@ if __name__ == '__main__':
     seed_everything(8, workers=True)
 
     root_path = Path('/media/data/projects/speech-privacy')
-    save_result_df = pd.DataFrame()
     device = torch.device("cuda:"+str(args.device)) if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
 
@@ -223,154 +105,115 @@ if __name__ == '__main__':
     model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
     model_setting_str += '_lr_' + str(args.learning_rate)[2:]
     
-    # normalization
+    # 1. normalization tmp computations
     weight_norm_mean_dict, weight_norm_std_dict = {}, {}
     weight_sum, weight_sum_square = {}, {}
     for key in ['w0', 'w1', 'w2', 'b0', 'b1', 'b2']:
         weight_norm_mean_dict[key], weight_norm_std_dict[key] = 0, 0
         weight_sum[key], weight_sum_square[key] = 0, 0
+    
+    # the updates layer name and their idx in gradient file
+    weight_name, bias_name = leak_layer_dict[args.leak_layer][0], leak_layer_dict[args.leak_layer][1]
+    weight_idx, bias_idx = leak_layer_idx_dict[weight_name], leak_layer_idx_dict[bias_name]
 
+    # 1.1 read all data and compute the tmp variables
     shadow_training_sample_size = 0
     shadow_data_dict = {}
-    for shadow_idx in range(0, 5):
+    for shadow_idx in range(5):
         for epoch in range(int(args.num_epochs)):
             adv_federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
-            weight_file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
+            file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             # if shadow_idx == 0 and epoch < 10:
             if epoch % 20 == 0:
                 print('reading shadow model %d, epoch %d' % (shadow_idx, epoch))
-            with open(weight_file_str, 'rb') as f:
-                adv_fed_weight_hist_dict = pickle.load(f)
-            for speaker_id in adv_fed_weight_hist_dict:
-                gradients = adv_fed_weight_hist_dict[speaker_id]['gradient']
-                gender = adv_fed_weight_hist_dict[speaker_id]['gender']
+            with open(file_str, 'rb') as f:
+                adv_gradient_dict = pickle.load(f)
+            for speaker_id in adv_gradient_dict:
+                data_key = str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id
+                gradients = adv_gradient_dict[speaker_id]['gradient']
+                gender = adv_gradient_dict[speaker_id]['gender']
                 shadow_training_sample_size += 1
                 
                 # calculate running stats for computing std and mean
-                shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
-                shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = gender
-                
-                for layer_name in leak_layer_idx_dict:
+                shadow_data_dict[data_key] = {}
+                shadow_data_dict[data_key]['gender'] = gender
+                shadow_data_dict[data_key][weight_name] = gradients[weight_idx]
+                shadow_data_dict[data_key][bias_name] = gradients[bias_idx]
+                for layer_name in leak_layer_dict[args.leak_layer]:
                     weight_sum[layer_name] += gradients[leak_layer_idx_dict[layer_name]]
                     weight_sum_square[layer_name] += gradients[leak_layer_idx_dict[layer_name]]**2
-                    
-                if args.leak_layer == 'first':
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w0'] = gradients[0]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b0'] = gradients[1]
-                elif args.leak_layer == 'second':
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w1'] = gradients[2]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b1'] = gradients[3]
-                else:
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w2'] = gradients[4]
-                    shadow_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b2'] = gradients[5]
-
-    # calculate std and mean
+            
+    # 1.2 calculate std and mean
     for key in leak_layer_dict[args.leak_layer]:
         weight_norm_mean_dict[key] = weight_sum[key] / shadow_training_sample_size
         tmp_data = weight_sum_square[key] / shadow_training_sample_size - (weight_sum[key] / shadow_training_sample_size)**2
         weight_norm_std_dict[key] = np.sqrt(tmp_data)
     
-    # train model to infer gender
+    # 2. train model to infer gender
+    # 2.1 define model
     train_key_list, validate_key_list = train_test_split(list(shadow_data_dict.keys()), test_size=0.2, random_state=0)
-
-    # so if it is trained using adv dataset or service provider dataset
     model = attack_model(args.leak_layer, args.feature_type)
     model = model.to(device)
-    criterion = nn.CrossEntropyLoss().to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(args.model_learning_rate), weight_decay=1e-04, betas=(0.9, 0.98), eps=1e-9)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5, verbose=True)
-
-    # define data loader
+    # 2.2 define data loader
     dataset_train = WeightDataGenerator(train_key_list, shadow_data_dict)
     dataset_valid = WeightDataGenerator(validate_key_list, shadow_data_dict)
+    data_module = AttackDataModule(dataset_train, dataset_valid)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=20, num_workers=0, shuffle=True)
-    dataloader_valid = DataLoader(dataset_valid, batch_size=20, num_workers=0, shuffle=False)
+    # 2.3 initialize the early_stopping object
+    early_stopping = EarlyStopping(monitor="val_loss", mode='min', patience=5,
+                                   stopping_threshold=1e-4, check_finite=True)
 
-    best_val_recall, best_val_acc, best_epoch = 0, 0, 0
-    best_conf_array = None
+    # 2.4 log saving path
+    attack_model_result_path = Path.cwd().parents[0].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
+    log_path = Path.joinpath(attack_model_result_path, 'log_private_' + str(args.dataset))
+    if log_path.exists(): shutil.rmtree(log_path)
+    Path.mkdir(log_path, parents=True, exist_ok=True)
+    mlf_logger = MLFlowLogger(experiment_name="ser", save_dir=str(log_path))
 
-    # initialize the early_stopping object
-    early_stopping = EarlyStopping(patience=5, verbose=True)
-
-    for epoch in range(50):
-        print('feature type: %s' % (args.feature_type))
-        train_result = train(model, device, dataloader_train, epoch, mode='train')
-        validate_result = train(model, device, dataloader_valid, epoch, mode='validate')
-        
-        if validate_result[args.adv_dataset]['acc'][args.pred] > best_val_acc:
-            best_val_acc = validate_result[args.adv_dataset]['acc'][args.pred]
-            best_val_recall = validate_result[args.adv_dataset]['rec'][args.pred]
-            best_epoch = epoch
-            best_model = deepcopy(model.state_dict())
-            best_conf_array = validate_result[args.adv_dataset]['conf'][args.pred]
-        print('best epoch %d, best val acc %.2f, best val rec %.2f' % (best_epoch, best_val_acc*100, best_val_recall*100))
-        print(best_conf_array)
-
-        early_stopping(validate_result[args.adv_dataset]['loss'][args.pred], best_model)
-
-        if early_stopping.early_stop:
-            print("Early stopping")
-            break
-    del model
+    checkpoint_callback = ModelCheckpoint(monitor="val_acc_epoch", mode="max", 
+                                          dirpath=str(attack_model_result_path),
+                                          filename='private_' + str(args.dataset) + '_model')
+    # 2.5 training using pytorch lighting framework
+    trainer = pl.Trainer(logger=mlf_logger, gpus=1, callbacks=[checkpoint_callback, early_stopping], max_epochs=50)
+    trainer.fit(model, data_module)
     
-    attack_model_result_csv_path = Path.cwd().parents[0].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
-    Path.mkdir(attack_model_result_csv_path, parents=True, exist_ok=True)
-    torch.save(best_model, str(attack_model_result_csv_path.joinpath('private_' + str(args.dataset) + '_model.pt')))
-
-    # load the evaluation model
-    eval_model = attack_model(args.leak_layer, args.feature_type)
-    eval_model = eval_model.to(device)
-    eval_model.load_state_dict(best_model)
-
-    # we evaluate the attacker performance on service provider training
-    for fold_idx in range(0, 5):
-        test_list = []
+    # 3. we evaluate the attacker performance on service provider training
+    save_result_df = pd.DataFrame()
+    # 3.1 we perform 5 fold evaluation, since we also train the private data 5 times
+    for fold_idx in range(5):
         test_data_dict = {}
         for epoch in range(int(args.num_epochs)):
             torch.cuda.empty_cache()
-            save_row_str = 'fold'+str(int(fold_idx+1))
-            row_df = pd.DataFrame(index=[save_row_str])
+            row_df = pd.DataFrame(index=['fold'+str(int(fold_idx+1))])
             
             # Model related
             federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
             weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
-            test_list.append(weight_file_str)
 
             with open(weight_file_str, 'rb') as f:
-                test_fed_weight_hist_dict = pickle.load(f)
-            for speaker_id in test_fed_weight_hist_dict:
-                gradients = test_fed_weight_hist_dict[speaker_id]['gradient']
-                test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id] = {}
-                if args.leak_layer == 'first':
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w0'] = gradients[0]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b0'] = gradients[1]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
+                test_gradient_dict = pickle.load(f)
+            for speaker_id in test_gradient_dict:
+                data_key = str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id
+                gradients = test_gradient_dict[speaker_id]['gradient']
+                test_data_dict[data_key] = {}
+                test_data_dict[data_key]['gender'] = test_gradient_dict[speaker_id]['gender']
+                test_data_dict[data_key][weight_name] = gradients[weight_idx]
+                test_data_dict[data_key][bias_name] = gradients[bias_idx]
 
-                elif args.leak_layer == 'second':
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w1'] = gradients[2]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b1'] = gradients[3]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
-                else:
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['w2'] = gradients[4]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['b2'] = gradients[5]
-                    test_data_dict[str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id]['gender'] = test_fed_weight_hist_dict[speaker_id]['gender']
-        
         dataset_test = WeightDataGenerator(list(test_data_dict.keys()), test_data_dict)
-        dataloader_test = DataLoader(dataset_test, batch_size=20, num_workers=0, shuffle=False)
-
-        test_results_dict = test(eval_model, device, dataloader_test, epoch=0)
-        row_df['acc'] = test_results_dict[args.dataset]['acc'][args.pred]
-        row_df['uar'] = test_results_dict[args.dataset]['rec'][args.pred]
+        dataloader_test = DataLoader(dataset_test, batch_size=20, num_workers=1, shuffle=False)
+        
+        # model.freeze()
+        # trainer.test(test_dataloaders=data_module.train_dataloader())
+        result_dict = trainer.test(dataloaders=dataloader_test, ckpt_path='best')
+        row_df['acc'], row_df['uar'] = result_dict['test_acc_epoch'], result_dict['test_uar_epoch']
         save_result_df = pd.concat([save_result_df, row_df])
 
         del dataset_test, dataloader_test
         
     row_df = pd.DataFrame(index=['average'])
-    row_df['acc'] = np.mean(save_result_df['acc'])
-    row_df['uar'] = np.mean(save_result_df['uar'])
+    row_df['acc'], row_df['uar'] = np.mean(save_result_df['acc']), np.mean(save_result_df['uar'])
     save_result_df = pd.concat([save_result_df, row_df])
-
-    save_result_df.to_csv(str(attack_model_result_csv_path.joinpath('private_' + str(args.dataset) + '_result.csv')))
+    save_result_df.to_csv(str(attack_model_result_path.joinpath('private_' + str(args.dataset) + '_result.csv')))
 
