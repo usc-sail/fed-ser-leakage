@@ -150,7 +150,6 @@ class attack_model(LightningModule):
         preds = torch.log_softmax(preds, dim=1)
         return preds
 
-    
     def cross_entropy_loss(self, logits, labels):
         return F.nll_loss(logits, labels)
 
@@ -233,7 +232,9 @@ class attack_model(LightningModule):
         if mode != 'test':
             result_dict['loss'] = np.mean(loss_list)
             print('%s accuracy %.3f / recall %.3f / loss %.3f after %d' % (mode, acc_score, rec_score, np.mean(loss_list), epoch))
+            print()
         else:
             print('%s accuracy %.3f / recall %.3f' % (mode, acc_score, rec_score))
+            print()
         print(confusion_matrix_arr)
         return result_dict
