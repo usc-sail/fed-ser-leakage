@@ -1,17 +1,10 @@
 from pathlib import Path
-from numpy.lib.npyio import save
 import pandas as pd
-import re
-import pickle
 import numpy as np
-import argparse
-import pdb
-from torch.nn.modules.module import T
 from tqdm import tqdm
-
+import pickle, argparse, re, pdb
 
 emo_map_dict = {'N': 'neu', 'S': 'sad', 'H': 'hap', 'A': 'ang'}
-
 
 def write_data_dict(tmp_dict, data, label, gender, speaker_id):
     tmp_dict['label'], tmp_dict['gender'], tmp_dict['speaker_id']  = label, gender, speaker_id
@@ -22,7 +15,6 @@ def write_data_dict(tmp_dict, data, label, gender, speaker_id):
     
 
 def save_data_dict(save_data, label, gender, speaker_id):
-
     if speaker_id in test_speaker_id_arr:
         test_dict[sentence_file] = {}
         write_data_dict(test_dict[sentence_file], save_data, label, gender, speaker_id)
@@ -32,7 +24,6 @@ def save_data_dict(save_data, label, gender, speaker_id):
     elif speaker_id in train_speaker_id_arr:
         training_dict[sentence_file] = {}
         write_data_dict(training_dict[sentence_file], save_data, label, gender, speaker_id)
-
 
 if __name__ == '__main__':
 
@@ -93,17 +84,13 @@ if __name__ == '__main__':
             for sentence_file in tqdm(sentence_file_list, ncols=100, miniters=100):
                 sentence_part = sentence_file.split('-')
                 recording_type = sentence_part[-2][-1:]
-                gender, speaker_id = sentence_part[-3][:1], sentence_part[-3]
-                emotion = label_dict[sentence_file]
-
+                gender, speaker_id, emotion = sentence_part[-3][:1], sentence_part[-3], label_dict[sentence_file]
+                
                 # we keep improv data only
                 if recording_type == 'P' or recording_type == 'R': continue
                 if emotion not in emo_map_dict: continue
                 label, data = emo_map_dict[emotion], data_dict[sentence_file]
-                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
-                    save_data = np.array(data['data'])[0]
-                else:
-                    save_data = np.array(data['data'])[0, 0, :].flatten()
+                save_data = np.array(data['data'])[0] if args.feature_type == 'emobase' else np.array(data['data'])[0, 0, :].flatten()
                 save_data_dict(save_data, label, gender, speaker_id)
 
         elif data_set_str == 'crema-d':
@@ -129,10 +116,7 @@ if __name__ == '__main__':
                 if sentence_file not in data_dict: continue
                 if emotion not in emo_map_dict: continue
                 label, data = emo_map_dict[emotion], data_dict[sentence_file]
-                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
-                    save_data = np.array(data['data'])[0]
-                else:
-                    save_data = np.array(data['data'])[0, 0, :].flatten()
+                save_data = np.array(data['data'])[0] if args.feature_type == 'emobase' else np.array(data['data'])[0, 0, :].flatten()
                 gender = 'M' if demo_df.loc[int(sentence_part[0]), 'Sex'] == 'Male' else 'F'
                 save_data_dict(save_data, label, gender, speaker_id)
 
@@ -158,11 +142,7 @@ if __name__ == '__main__':
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
                                 label, data = line.split('\t')[-2], data_dict[sentence_file]
-
-                                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
-                                    save_data = np.array(data['data'])[0]
-                                else:
-                                    save_data = np.array(data['data'])[0, 0, :].flatten()
+                                save_data = np.array(data['data'])[0] if args.feature_type == 'emobase' else np.array(data['data'])[0, 0, :].flatten()
                                 
                                 if 'impro' not in line: continue
                                 if label == 'ang' or label == 'neu' or label == 'sad' or label == 'hap' or label == 'exc':
