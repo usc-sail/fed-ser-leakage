@@ -15,10 +15,6 @@ emo_map_dict = {'N': 'neu', 'S': 'sad', 'H': 'hap', 'A': 'ang'}
 
 def write_data_dict(tmp_dict, data, label, gender, speaker_id):
     tmp_dict['label'], tmp_dict['gender'], tmp_dict['speaker_id']  = label, gender, speaker_id
-    if args.dataset != 'crema-d':
-        tmp_dict['arousal'], tmp_dict['valence'] = arousal, valence
-        tmp_dict['arousal_label'], tmp_dict['valence_label'] = arousal_label, valence_label
-
     # save for normalization later
     if speaker_id not in training_norm_dict: training_norm_dict[speaker_id] = []
     training_norm_dict[speaker_id].append(data.copy())
@@ -36,16 +32,6 @@ def save_data_dict(save_data, label, gender, speaker_id):
     elif speaker_id in train_speaker_id_arr:
         training_dict[sentence_file] = {}
         write_data_dict(training_dict[sentence_file], save_data, label, gender, speaker_id)
-
-
-def return_affect_label(score, low_threshold, high_threshold):
-    if score <= low_threshold:
-        label = 'low'
-    elif low_threshold < score <= high_threshold:
-        label = 'med'
-    else:
-        label = 'high'
-    return label
 
 
 if __name__ == '__main__':
@@ -97,28 +83,23 @@ if __name__ == '__main__':
             with open(str(evaluation_path)) as f:
                 evaluation_lines = f.readlines()
 
-            label_dict, arousal_dict, valence_dict = {}, {}, {}
+            label_dict = {}
             for evaluation_line in evaluation_lines:
                 if 'UTD-' in evaluation_line:
                     file_name = 'MSP-'+evaluation_line.split('.avi')[0][4:]
                     emotion = evaluation_line.split('; ')[1][0]
-                    arousal = float(evaluation_line.split('; ')[2][2:])
-                    valence = float(evaluation_line.split('; ')[3][2:])
                     label_dict[file_name] = emotion
-                    arousal_dict[file_name], valence_dict[file_name] = arousal, valence
                     
             for sentence_file in tqdm(sentence_file_list, ncols=100, miniters=100):
                 sentence_part = sentence_file.split('-')
                 recording_type = sentence_part[-2][-1:]
                 gender, speaker_id = sentence_part[-3][:1], sentence_part[-3]
-                emotion, arousal, valence = label_dict[sentence_file], arousal_dict[sentence_file], valence_dict[sentence_file]
+                emotion = label_dict[sentence_file]
 
                 # we keep improv data only
                 if recording_type == 'P' or recording_type == 'R': continue
                 if emotion not in emo_map_dict: continue
                 label, data = emo_map_dict[emotion], data_dict[sentence_file]
-                arousal_label = return_affect_label(arousal, 2.75, 3.25)
-                valence_label = return_affect_label(valence, 2.75, 3.25)
                 if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                     save_data = np.array(data['data'])[0]
                 else:
@@ -176,14 +157,8 @@ if __name__ == '__main__':
                                 sentence_file = line.split('\t')[-3]
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
-                                
                                 label, data = line.split('\t')[-2], data_dict[sentence_file]
 
-                                arousal = float(line.split('\t')[-1].split(',')[0][1:])
-                                valence = float(line.split('\t')[-1].split(',')[1][1:])
-                                arousal_label = return_affect_label(arousal, 2.75, 3.25)
-                                valence_label = return_affect_label(valence, 2.75, 3.25)
-                            
                                 if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                                     save_data = np.array(data['data'])[0]
                                 else:
