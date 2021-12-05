@@ -199,7 +199,6 @@ if __name__ == '__main__':
         # model.freeze()
         # trainer.test(test_dataloaders=data_module.train_dataloader())
         result_dict = trainer.test(dataloaders=dataloader_test, ckpt_path='best')
-        pdb.set_trace()
         row_df['acc'], row_df['uar'] = result_dict[0]['test_acc_epoch'], result_dict[0]['test_uar_epoch']
         save_result_df = pd.concat([save_result_df, row_df])
 
