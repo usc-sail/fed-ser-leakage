@@ -1,27 +1,22 @@
 import torch
-import torch.nn as nn
-import argparse
 import torch.multiprocessing
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
-import shutil
-import numpy as np
-import torch
-import pickle
+from pytorch_lightning import seed_everything
+import pytorch_lightning as pl
+
+from sklearn.model_selection import train_test_split
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
-import sys, os
+import sys, os, shutil, pickle, argparse
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
-import pytorch_lightning as pl
 from attack_model import attack_model
-from pytorch_lightning import seed_everything
-from sklearn.model_selection import train_test_split
 
 import pdb
 
@@ -30,7 +25,6 @@ gender_dict = {'F': 0, 'M': 1}
 leak_layer_dict = {'full': ['w0', 'b0', 'w1', 'b1', 'w2', 'b2'],
                    'first': ['w0', 'b0'], 'second': ['w1', 'b1'], 'last': ['w2', 'b2']}
 leak_layer_idx_dict = {'w0': 0, 'w1': 2, 'w2': 4, 'b0': 1, 'b1': 3, 'b2': 5}
-
 
 class WeightDataGenerator():
     def __init__(self, dict_keys, data_dict = None):
@@ -64,8 +58,6 @@ class AttackDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(self.val, batch_size=20, num_workers=0, shuffle=False)
     
-
-
 if __name__ == '__main__':
 
     torch.cuda.empty_cache() 
