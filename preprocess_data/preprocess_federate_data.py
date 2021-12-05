@@ -10,25 +10,17 @@ from torch.nn.modules.module import T
 from tqdm import tqdm
 
 
-def create_folder(folder):
-    if Path.exists(folder) is False:
-        Path.mkdir(folder)
+emo_map_dict = {'N': 'neu', 'S': 'sad', 'H': 'hap', 'A': 'ang'}
 
 
 def write_data_dict(tmp_dict, data, label, gender, speaker_id):
-    tmp_dict['label'] = label
-    tmp_dict['gender'] = gender
-    tmp_dict['speaker_id'] = speaker_id
-
+    tmp_dict['label'], tmp_dict['gender'], tmp_dict['speaker_id']  = label, gender, speaker_id
     if args.dataset != 'crema-d':
-        tmp_dict['arousal'] = arousal
-        tmp_dict['valence'] = valence
-        tmp_dict['arousal_label'] = arousal_label
-        tmp_dict['valence_label'] = valence_label
+        tmp_dict['arousal'], tmp_dict['valence'] = arousal, valence
+        tmp_dict['arousal_label'], tmp_dict['valence_label'] = arousal_label, valence_label
 
     # save for normalization later
-    if speaker_id not in training_norm_dict:
-        training_norm_dict[speaker_id] = []
+    if speaker_id not in training_norm_dict: training_norm_dict[speaker_id] = []
     training_norm_dict[speaker_id].append(data.copy())
     tmp_dict['data'] = data.copy()
     
@@ -69,22 +61,16 @@ if __name__ == '__main__':
     parser.add_argument('--train_arr', nargs='*', type=int, default=None)
     parser.add_argument('--validation_arr', nargs='*', type=int, default=None)
     parser.add_argument('--test_arr', nargs='*', type=int, default=None)
-    
     args = parser.parse_args()
 
     # read args
-    test_fold = args.test_fold
-    feature_type = args.feature_type
-    
+    test_fold, feature_type = args.test_fold, args.feature_type
     train_arr, validation_arr, test_arr = args.train_arr, args.validation_arr, args.test_arr
     
     # save preprocess file
     root_path = Path('/media/data/projects/speech-privacy')
-    create_folder(root_path.joinpath('federated_learning'))
-    create_folder(root_path.joinpath('federated_learning', feature_type))
-    create_folder(root_path.joinpath('federated_learning', feature_type, args.pred))
-
     preprocess_path = root_path.joinpath('federated_learning', feature_type, args.pred)
+    Path.mkdir(preprocess_path, parents=True, exist_ok=True)
 
     # feature folder
     feature_path = root_path.joinpath('federated_feature', feature_type)
@@ -92,17 +78,13 @@ if __name__ == '__main__':
 
     for data_set_str in [args.dataset]:
 
-        if data_set_str in ['iemocap', 'crema-d', 'msp-improv']:
-            with open(feature_path.joinpath(data_set_str, 'data.pkl'), 'rb') as f:
-                data_dict = pickle.load(f)
-        
+        with open(feature_path.joinpath(data_set_str, 'data.pkl'), 'rb') as f:
+            data_dict = pickle.load(f)
         training_dict, valid_dict, test_dict = {}, {}, {}
-        
         if data_set_str == 'msp-improv':
             # data root folder
             sentence_file_list = list(data_dict.keys())
             sentence_file_list.sort()
-
             speaker_id_arr = ['M01', 'F01', 'M02', 'F02', 'M03', 'F03', 'M04', 'F04', 'M05', 'F05', 'M06', 'F06']
 
             train_speaker_id_arr = [speaker_id_arr[tmp_idx] for tmp_idx in train_arr]
@@ -111,66 +93,37 @@ if __name__ == '__main__':
             
             # data root folder
             data_root_path = Path('/media/data').joinpath('sail-data')
-            data_str = 'MSP-IMPROV'
-
-            evaluation_path = data_root_path.joinpath(data_str, data_str, 'Evalution.txt')
+            evaluation_path = data_root_path.joinpath('MSP-IMPROV', 'MSP-IMPROV', 'Evalution.txt')
             with open(str(evaluation_path)) as f:
                 evaluation_lines = f.readlines()
 
             label_dict, arousal_dict, valence_dict = {}, {}, {}
             for evaluation_line in evaluation_lines:
                 if 'UTD-' in evaluation_line:
-                    file_name = evaluation_line.split('.avi')[0]
+                    file_name = 'MSP-'+evaluation_line.split('.avi')[0][4:]
                     emotion = evaluation_line.split('; ')[1][0]
                     arousal = float(evaluation_line.split('; ')[2][2:])
                     valence = float(evaluation_line.split('; ')[3][2:])
-                    label_dict['MSP-'+file_name[4:]] = emotion
-                    arousal_dict['MSP-'+file_name[4:]] = arousal
-                    valence_dict['MSP-'+file_name[4:]] = valence
+                    label_dict[file_name] = emotion
+                    arousal_dict[file_name], valence_dict[file_name] = arousal, valence
                     
             for sentence_file in tqdm(sentence_file_list, ncols=100, miniters=100):
                 sentence_part = sentence_file.split('-')
                 recording_type = sentence_part[-2][-1:]
-                gender = sentence_part[-3][:1]
-                speaker_id = sentence_part[-3]
-                emotion = label_dict[sentence_file]
-                arousal = arousal_dict[sentence_file]
-                valence = valence_dict[sentence_file]
+                gender, speaker_id = sentence_part[-3][:1], sentence_part[-3]
+                emotion, arousal, valence = label_dict[sentence_file], arousal_dict[sentence_file], valence_dict[sentence_file]
 
                 # we keep improv data only
-                if recording_type == 'P':
-                    continue
-                if recording_type == 'R':
-                    continue
-                
-                if emotion == 'N':
-                    label = 'neu'
-                elif emotion == 'S':
-                    label = 'sad'
-                elif emotion == 'H':
-                    label = 'hap'
-                elif emotion == 'A':
-                    label = 'ang'
-                else:
-                    label = 'oth'
-                
+                if recording_type == 'P' or recording_type == 'R': continue
+                if emotion not in emo_map_dict: continue
+                label, data = emo_map_dict[emotion], data_dict[sentence_file]
                 arousal_label = return_affect_label(arousal, 2.75, 3.25)
                 valence_label = return_affect_label(valence, 2.75, 3.25)
-
-                data = data_dict[sentence_file]
-                if args.feature_type == 'wav2vec':
-                    save_data = np.array(data['data'])[:, 0, :].flatten()
-                elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
+                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
                     save_data = np.array(data['data'])[0]
                 else:
-                    # the global average
                     save_data = np.array(data['data'])[0, 0, :].flatten()
-
-                if args.pred == 'emotion': 
-                    if label != 'oth':
-                        save_data_dict(save_data, label, gender, speaker_id)
-                else:
-                    save_data_dict(save_data, label, gender, speaker_id)
+                save_data_dict(save_data, label, gender, speaker_id)
 
         elif data_set_str == 'crema-d':
             
@@ -184,55 +137,27 @@ if __name__ == '__main__':
             demo_df = pd.read_csv(str(data_root_path.joinpath(data_set_str, 'VideoDemographics.csv')), index_col=0)
             rating_df = pd.read_csv(str(data_root_path.joinpath(data_set_str, 'summaryTable.csv')), index_col=1)
             sentence_file_list = list(data_root_path.joinpath(data_set_str).glob('*.wav'))
-           
             sentence_file_list.sort()
-            speaker_id_arr = np.arange(1001, 1092, 1)
             
             for sentence_file in tqdm(sentence_file_list, ncols=100, miniters=100):
                 sentence_file = str(sentence_file).split('/')[-1].split('.wav')[0]
                 sentence_part = sentence_file.split('_')
-                
                 speaker_id = int(sentence_part[0])
                 emotion = rating_df.loc[sentence_file, 'MultiModalVote']
                 
-                if emotion == 'A' or emotion == 'N' or emotion == 'S' or emotion == 'H':
-                    if sentence_file not in data_dict:
-                        continue
-                    
-                    if emotion == 'N':
-                        label = 'neu'
-                    elif emotion == 'S':
-                        label = 'sad'
-                    elif emotion == 'H':
-                        label = 'hap'
-                    elif emotion == 'A':
-                        label = 'ang'
-                    
-                    data = data_dict[sentence_file]
-                    # pdb.set_trace()
-                    if args.feature_type == 'wav2vec':
-                        save_data = np.array(data['data'])[:, 0, :].flatten()
-                    elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
-                        save_data = np.array(data['data'])[0]
-                    else:
-                        # save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
-                        # save_data = np.array(data['data'])[-1, 0, :]
-                        save_data = np.array(data['data'])[0, 0, :].flatten()
-
-                    # pdb.set_trace()
-                    
-                    # pdb.set_trace()
-                    session_id = int(sentence_part[0])
-                    gender = 'M' if demo_df.loc[int(session_id), 'Sex'] == 'Male' else 'F'
-                    speaker_id = int(sentence_file.split('_')[0])
-                    save_data_dict(save_data, label, gender, speaker_id)
-            print(np.array(data['data'])[:, 0, :].shape)
+                if sentence_file not in data_dict: continue
+                if emotion not in emo_map_dict: continue
+                label, data = emo_map_dict[emotion], data_dict[sentence_file]
+                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
+                    save_data = np.array(data['data'])[0]
+                else:
+                    save_data = np.array(data['data'])[0, 0, :].flatten()
+                gender = 'M' if demo_df.loc[int(sentence_part[0]), 'Sex'] == 'Male' else 'F'
+                save_data_dict(save_data, label, gender, speaker_id)
 
         elif data_set_str == 'iemocap':
-
-            speaker_id_arr = ['Ses01F', 'Ses01M', 'Ses02F', 'Ses02M', 'Ses03F', 'Ses03M', 'Ses04F', 'Ses04M', 'Ses05F', 'Ses05M']
-            
             # speaker id for training, validation, and test
+            speaker_id_arr = ['Ses01F', 'Ses01M', 'Ses02F', 'Ses02M', 'Ses03F', 'Ses03M', 'Ses04F', 'Ses04M', 'Ses05F', 'Ses05M']
             train_speaker_id_arr = [speaker_id_arr[tmp_idx] for tmp_idx in train_arr]
             validation_speaker_id_arr = [speaker_id_arr[tmp_idx] for tmp_idx in validation_arr]
             test_speaker_id_arr = [speaker_id_arr[tmp_idx] for tmp_idx in test_arr]
@@ -249,36 +174,26 @@ if __name__ == '__main__':
                         for line in label_lines:
                             if 'Ses' in line:
                                 sentence_file = line.split('\t')[-3]
-                                label = line.split('\t')[-2]
-
-                                arousal = float(line.split('\t')[-1].split(',')[0][1:])
-                                valence = float(line.split('\t')[-1].split(',')[1][1:])
-                                
-                                arousal_label = return_affect_label(arousal, 2.75, 3.25)
-                                valence_label = return_affect_label(valence, 2.75, 3.25)
-                            
-                                data = data_dict[sentence_file]
-                                if args.feature_type == 'wav2vec':
-                                    save_data = np.array(data['data'])[:, 0, :].flatten()
-                                elif args.feature_type == 'emobase' or args.feature_type == 'ComParE':
-                                    save_data = np.array(data['data'])[0]
-                                else:
-                                    # save_data = np.array(data['data'])[-1, 0, :]
-                                    # save_data = np.array(data['data'])[[0, 1], 0, :].flatten()
-                                    save_data = np.array(data['data'])[0, 0, :].flatten()
-                                
                                 gender = sentence_file.split('_')[-1][0]
                                 speaker_id = sentence_file.split('_')[0][:-1] + gender
                                 
-                                if 'impro' not in line: continue
-                                if args.pred == 'emotion':
-                                    if label == 'ang' or label == 'neu' or label == 'sad' or label == 'hap' or label == 'exc':
-                                        if label == 'exc': 
-                                            label = 'hap'
-                                        save_data_dict(save_data, label, gender, speaker_id)
-                                else:
-                                    save_data_dict(save_data, label, gender, speaker_id)
+                                label, data = line.split('\t')[-2], data_dict[sentence_file]
 
+                                arousal = float(line.split('\t')[-1].split(',')[0][1:])
+                                valence = float(line.split('\t')[-1].split(',')[1][1:])
+                                arousal_label = return_affect_label(arousal, 2.75, 3.25)
+                                valence_label = return_affect_label(valence, 2.75, 3.25)
+                            
+                                if args.feature_type == 'emobase' or args.feature_type == 'ComParE':
+                                    save_data = np.array(data['data'])[0]
+                                else:
+                                    save_data = np.array(data['data'])[0, 0, :].flatten()
+                                
+                                if 'impro' not in line: continue
+                                if label == 'ang' or label == 'neu' or label == 'sad' or label == 'hap' or label == 'exc':
+                                    if label == 'exc': label = 'hap'
+                                    save_data_dict(save_data, label, gender, speaker_id)
+                                
         # if we are not trying to combine the dataset, we should do the normalization or augmentation
         speaker_norm_dict = {}
         for speaker_id in training_norm_dict:
@@ -286,23 +201,15 @@ if __name__ == '__main__':
             speaker_norm_dict[speaker_id] = {}
             speaker_norm_dict[speaker_id]['mean'] = np.nanmean(np.array(norm_data_list), axis=0)
             speaker_norm_dict[speaker_id]['std'] = np.nanstd(np.array(norm_data_list), axis=0)
-            speaker_norm_dict[speaker_id]['min'] = np.nanmin(np.array(norm_data_list), axis=0)
-            speaker_norm_dict[speaker_id]['max'] = np.nanmax(np.array(norm_data_list), axis=0)
 
         for tmp_dict in [training_dict, valid_dict, test_dict]:
             for file_name in tmp_dict:
                 speaker_id = tmp_dict[file_name]['speaker_id']
-                if args.norm == 'znorm':
+                if args.norm == 'znorm': 
                     tmp_data = (tmp_dict[file_name]['data'].copy() - speaker_norm_dict[speaker_id]['mean']) / (speaker_norm_dict[speaker_id]['std']+1e-5)
-                elif args.norm == 'min_max':
-                    tmp_data = (tmp_dict[file_name]['data'].copy() - speaker_norm_dict[speaker_id]['min']) / (speaker_norm_dict[speaker_id]['max'] - speaker_norm_dict[speaker_id]['min'])
-                    tmp_data = tmp_data * 2 - 1
                 tmp_dict[file_name]['data'] = tmp_data.copy()
 
-
-        create_folder(preprocess_path.joinpath(data_set_str))
-        create_folder(preprocess_path.joinpath(data_set_str, test_fold))
-
+        Path.mkdir(preprocess_path.joinpath(data_set_str, test_fold), parents=True, exist_ok=True)
         f = open(str(preprocess_path.joinpath(data_set_str, test_fold, 'training_'+args.norm+'.pkl')), "wb")
         pickle.dump(training_dict, f)
         f.close()
