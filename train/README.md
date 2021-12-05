@@ -77,3 +77,37 @@ x = nn.Dropout(p=0.2)(x)
 preds = self.pred_layer(x)
 preds = torch.log_softmax(preds, dim=1)
 ```
+
+### 2. Attack training to infer gender
+
+The bash file federated_attribute_attack.sh provides an example of running the preprocess python file. e.g.:
+
+```bash
+python3 federated_attribute_attack.py --dataset iemocap --leak_layer first \
+                        --learning_rate 0.0005 --optimizer adam --model_type fed_sgd \
+                        --adv_dataset msp-improv_crema-d --pred emotion --device 0 \
+                        --feature_type apc --local_epochs 1 --norm znorm --num_epochs 200 \
+                        --model_learning_rate 0.0001 --dropout 0.2
+```
+
+- The arg `dataset` specifies the private training data set. The support data sets are IEMOCAP (iemocap), MSP-Improv (msp-improv), and CREMA-D (crema-d). 
+
+- The arg `adv_dataset` specifies the shadow training data sets. The support data sets are pairs of IEMOCAP (iemocap), MSP-Improv (msp-improv), and CREMA-D (crema-d). 
+
+- The arg `feature_type` is the feature reprentation type. Please refer to README under feature extraction for more details.
+
+- The arg `pred` is prediction label. Currently support SER only, the arousal and valence predictions are ongoing work.
+
+- The arg `norm` specifies the normalization method including z-normalization and min-max normalization. The normalization is implemented within a speaker.
+
+- The arg `model_type` specifies the FL algorithm for training the SER: fed_sgd and fed_avg.
+
+- The arg `dropout` specifies the dropout value in the first dense layer of SER.
+
+- The arg `local_epochs` specifies the local epoch, ignored in fed_sgd.
+
+- The arg `num_epochs` specifies the global epoch in FL.
+
+- The arg `learning_rate` specifies the learning rate in FL.
+
+- The arg `model_learning_rate` specifies the learning rate in training the attack model.
