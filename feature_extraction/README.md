@@ -7,9 +7,10 @@ We extract speech features of human knowledge using OpenSMILE toolkit. You can r
 The bash file opensmile_feature_extraction.sh provides an example of running the feature extraction python file. e.g.:
 
 ```sh
-taskset 100 python3 opensmile_feature_extraction.py --dataset msp-improv --feature_type emobase
-taskset 100 python3 opensmile_feature_extraction.py --dataset iemocap --feature_type emobase
-taskset 100 python3 opensmile_feature_extraction.py --dataset crema-d --feature_type emobase
+taskset 100 python3 opensmile_feature_extraction.py --dataset iemocap --feature_type emobase \
+                            --data_dir /media/data/sail-data/iemocap \
+                            --save_dir /media/data/projects/speech-privacy
+ 
 ```
 The support data sets are IEMOCAP, MSP-Improv, and CREMA-D. The support feature_type args are emobase, ComParE, and GeMAPS.
 
