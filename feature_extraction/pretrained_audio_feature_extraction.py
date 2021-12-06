@@ -33,11 +33,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')
     parser.add_argument('--feature_type', default='wav2vec')
+    parser.add_argument('--data_dir', default='/media/data/public-data/SER')
+    parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
 
     # save feature file
-    root_path = Path('/media/data/projects/speech-privacy')
-    save_feat_path = root_path.joinpath('federated_feature', args.feature_type)
+    save_feat_path = Path(args.save_dir).joinpath('federated_feature', args.feature_type)
     Path.mkdir(save_feat_path, parents=True, exist_ok=True)
     audio_features = {}
 
@@ -55,12 +56,12 @@ if __name__ == '__main__':
     # msp-improv
     if args.dataset == 'msp-improv':
         # data root folder
-        data_root_path = Path('/media/data').joinpath('sail-data')
-        session_list = [x.parts[-1] for x in data_root_path.joinpath('MSP-IMPROV', 'MSP-IMPROV', 'Audio').iterdir() if 'session' in x.parts[-1]]
+        data_root_path = Path(args.data_dir)
+        session_list = [x.parts[-1] for x in data_root_path.joinpath('Audio').iterdir() if 'session' in x.parts[-1]]
         session_list.sort()
         
         for session_id in session_list:
-            file_path_list = list(data_root_path.joinpath('MSP-IMPROV', 'MSP-IMPROV', 'Audio', session_id).glob('**/**/*.wav'))
+            file_path_list = list(data_root_path.joinpath('Audio', session_id).glob('**/**/*.wav'))
             for file_path in tqdm(file_path_list, ncols=50, miniters=100):
                 file_name = file_path.parts[-1].split('.wav')[0].split('/')[-1]
                 print("process %s %s" % (session_id, file_name))
@@ -79,8 +80,8 @@ if __name__ == '__main__':
     # crema-d
     elif args.dataset == 'crema-d':
         # data root folder
-        data_root_path = Path('/media/data').joinpath('public-data', 'SER')
-        file_list = [x for x in data_root_path.joinpath(args.dataset).iterdir() if '.wav' in x.parts[-1]]
+        data_root_path = Path(args.data_dir)
+        file_list = [x for x in data_root_path.joinpath('AudioWAV').iterdir() if '.wav' in x.parts[-1]]
         file_list.sort()
 
         for file_path in tqdm(file_list, ncols=100, miniters=100):
@@ -99,11 +100,11 @@ if __name__ == '__main__':
     # iemocap
     elif args.dataset == 'iemocap':
         # data root folder
-        data_root_path = Path('/media/data').joinpath('sail-data')
-        session_list = [x.parts[-1] for x in data_root_path.joinpath(args.dataset).iterdir() if  'Session' in x.parts[-1]]
+        data_root_path = Path(args.data_dir)
+        session_list = [x.parts[-1] for x in data_root_path.iterdir() if 'Session' in x.parts[-1]]
         session_list.sort()
         for session_id in session_list:
-            file_path_list = list(data_root_path.joinpath(args.dataset, session_id, 'sentences', 'wav').glob('**/*.wav'))
+            file_path_list = list(data_root_path.joinpath(session_id, 'sentences', 'wav').glob('**/*.wav'))
             for file_path in tqdm(file_path_list, ncols=100, miniters=100):
                 file_name = file_path.parts[-1].split('.wav')[0].split('/')[-1]
                 audio, sample_rate = torchaudio.load(str(file_path))
@@ -118,7 +119,3 @@ if __name__ == '__main__':
     save_path = str(save_feat_path.joinpath(args.dataset, 'data.pkl'))
     with open(save_path, 'wb') as handle:
         pickle.dump(audio_features, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        
-            
-
