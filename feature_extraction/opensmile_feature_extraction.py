@@ -18,7 +18,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # save feature file
-    save_feat_path = Path(args.feat_dir).joinpath('federated_feature', args.feature_type)
+    save_feat_path = Path(args.data_dir).joinpath('federated_feature', args.feature_type)
     Path.mkdir(save_feat_path, parents=True, exist_ok=True)
     audio_features = {}
 
