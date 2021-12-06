@@ -34,9 +34,10 @@ Oct 5 2021 | DistilHuBERT | distilhubert | [arxiv](https://arxiv.org/abs/2110.01
 The bash file pretrained_audio_feature_extraction.sh provides an example of running the feature extraction python file to extract APC feature. e.g.:
 
 ```sh
-taskset 100 python3 pretrained_audio_feature_extraction.py --dataset msp-improv --feature_type apc
-taskset 100 python3 pretrained_audio_feature_extraction.py --dataset iemocap --feature_type apc
-taskset 100 python3 pretrained_audio_feature_extraction.py --dataset crema-d --feature_type apc
+taskset 100 python3 pretrained_audio_feature_extraction.py --dataset iemocap \
+                            --feature_type apc \
+                            --data_dir /media/data/sail-data/iemocap \
+                            --save_dir /media/data/projects/speech-privacy
 ```
 The support data sets are IEMOCAP, MSP-Improv, and CREMA-D. The support feature_type args are apc, vq_apc, tera, decoar2, mockingjay, npc, and distilhubert.
 
