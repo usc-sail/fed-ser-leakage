@@ -1,8 +1,8 @@
-import argparse
 import numpy as np
-import os, pdb
+import os, pdb, sys
 from pathlib import Path
 import configparser
+
 
 if __name__ == '__main__':
 
@@ -39,4 +39,19 @@ if __name__ == '__main__':
             print(cmd_str)
             os.system(cmd_str)
 
-
+    # 3. Training SER model
+    if config['mode'].getboolean('ser_training') is True:
+        for dataset in [config['dataset']['private_dataset'], config['dataset']['adv_dataset']]:
+            cmd_str = 'taskset 100 python3 train/federated_ser_classifier.py --dataset ' + dataset
+            cmd_str += ' --feature_type ' + config['feature']['feature']
+            cmd_str += ' --dropout ' + config['model']['dropout']
+            cmd_str += ' --norm znorm --optimizer adam'
+            cmd_str += ' --model_type ' + config['model']['fed_model']
+            cmd_str += ' --learning_rate ' + config[config['model']['fed_model']]['lr']
+            cmd_str += ' --local_epochs ' + config[config['model']['fed_model']]['local_epochs']
+            cmd_str += ' --num_epochs ' + config[config['model']['fed_model']]['global_epochs']
+            cmd_str += ' --save_dir ' + config['dir']['save_dir']
+            
+            print('Traing SER model')
+            print(cmd_str)
+            os.system(cmd_str)
