@@ -1,3 +1,4 @@
-python3 federated_classifier.py --dataset iemocap --local_epochs 5 --learning_rate 0.05 --model_type fed_sgd \
-                        --feature_type apc --pred emotion --norm znorm --optimizer adam --dropout 0.2 --num_epochs 200
-
+python3 federated_ser_classifier.py --dataset msp-improv_crema-d --norm znorm \
+                        --feature_type emobase --dropout 0.2 --num_epochs 200 --local_epochs 1 \
+                        --optimizer adam --model_type fed_avg --learning_rate 0.0005 \
+                        --save_dir /media/data/projects/speech-privacy
