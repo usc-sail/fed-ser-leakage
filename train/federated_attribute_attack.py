@@ -11,10 +11,9 @@ from sklearn.model_selection import train_test_split
 from pathlib import Path
 import pandas as pd
 import numpy as np
-
 import sys, os, shutil, pickle, argparse, pdb
-sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
-sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
+
+sys.path.append(os.path.join(str(Path(os.path.realpath(__file__)).parents[1]), 'model'))
 from attack_model import attack_model
 
 # some general mapping for this script
@@ -57,7 +56,6 @@ class AttackDataModule(pl.LightningDataModule):
     
 if __name__ == '__main__':
 
-    torch.cuda.empty_cache() 
     torch.multiprocessing.set_sharing_strategy('file_system')
 
     # argument parser
@@ -65,28 +63,23 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='iemocap')
     parser.add_argument('--adv_dataset', default='iemocap')
     parser.add_argument('--feature_type', default='apc')
-    parser.add_argument('--input_channel', default=1)
     parser.add_argument('--learning_rate', default=0.001)
     parser.add_argument('--model_learning_rate', default=0.0005)
-    parser.add_argument('--input_spec_size', default=128)
     parser.add_argument('--batch_size', default=10)
-    parser.add_argument('--aug', default=None)
     parser.add_argument('--use_gpu', default=True)
     parser.add_argument('--num_epochs', default=200)
     parser.add_argument('--local_epochs', default=5)
     parser.add_argument('--norm', default='znorm')
     parser.add_argument('--device', default='1')
-    parser.add_argument('--win_len', default=200)
     parser.add_argument('--optimizer', default='sgd')
     parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')
     parser.add_argument('--leak_layer', default='full')
     parser.add_argument('--dropout', default=0.2)
+    parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
     
     seed_everything(8, workers=True)
-
-    root_path = Path('/media/data/projects/speech-privacy')
     device = torch.device("cuda:"+str(args.device)) if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
 
@@ -106,14 +99,13 @@ if __name__ == '__main__':
     weight_idx, bias_idx = leak_layer_idx_dict[weight_name], leak_layer_idx_dict[bias_name]
 
     # 1.1 read all data and compute the tmp variables
-    shadow_training_sample_size = 0
-    shadow_data_dict = {}
+    shadow_training_sample_size, shadow_data_dict = 0, {}
     for shadow_idx in range(5):
         for epoch in range(int(args.num_epochs)):
-            adv_federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
+            adv_federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
             file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             # if shadow_idx == 0 and epoch < 10:
-            if epoch % 20 == 0:
+            if epoch % 20 == 0: 
                 print('reading shadow model %d, epoch %d' % (shadow_idx, epoch))
             with open(file_str, 'rb') as f:
                 adv_gradient_dict = pickle.load(f)
@@ -150,11 +142,10 @@ if __name__ == '__main__':
     data_module = AttackDataModule(dataset_train, dataset_valid)
 
     # 2.3 initialize the early_stopping object
-    early_stopping = EarlyStopping(monitor="val_loss", mode='min', patience=5,
-                                   stopping_threshold=1e-4, check_finite=True)
+    early_stopping = EarlyStopping(monitor="val_loss", mode='min', patience=5, stopping_threshold=1e-4, check_finite=True)
 
     # 2.4 log saving path
-    attack_model_result_path = Path.cwd().parents[0].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
+    attack_model_result_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
     log_path = Path.joinpath(attack_model_result_path, 'log_private_' + str(args.dataset))
     if log_path.exists(): shutil.rmtree(log_path)
     Path.mkdir(log_path, parents=True, exist_ok=True)
@@ -173,11 +164,10 @@ if __name__ == '__main__':
     for fold_idx in range(5):
         test_data_dict = {}
         for epoch in range(int(args.num_epochs)):
-            torch.cuda.empty_cache()
             row_df = pd.DataFrame(index=['fold'+str(int(fold_idx+1))])
             
             # Model related
-            federated_model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
+            federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
             weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
 
             with open(weight_file_str, 'rb') as f:
@@ -198,7 +188,6 @@ if __name__ == '__main__':
         result_dict = trainer.test(dataloaders=dataloader_test, ckpt_path='best')
         row_df['acc'], row_df['uar'] = result_dict[0]['test_acc_epoch'], result_dict[0]['test_uar_epoch']
         save_result_df = pd.concat([save_result_df, row_df])
-
         del dataset_test, dataloader_test
         
     row_df = pd.DataFrame(index=['average'])

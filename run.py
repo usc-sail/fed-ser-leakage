@@ -55,3 +55,21 @@ if __name__ == '__main__':
             print('Traing SER model')
             print(cmd_str)
             os.system(cmd_str)
+
+    # 4. Training attack model
+    if config['mode'].getboolean('attack_training') is True:
+        cmd_str = 'taskset 100 python3 train/federated_attribute_attack.py --dataset ' + config['dataset']['private_dataset']
+        cmd_str += ' --norm znorm --optimizer adam'
+        cmd_str += ' --adv_dataset ' + config['dataset']['adv_dataset']
+        cmd_str += ' --feature_type ' + config['feature']['feature']
+        cmd_str += ' --dropout ' + config['model']['dropout']
+        cmd_str += ' --model_type ' + config['model']['fed_model']
+        cmd_str += ' --learning_rate ' + config[config['model']['fed_model']]['lr']
+        cmd_str += ' --local_epochs ' + config[config['model']['fed_model']]['local_epochs']
+        cmd_str += ' --num_epochs ' + config[config['model']['fed_model']]['global_epochs']
+        cmd_str += ' --save_dir ' + config['dir']['save_dir']
+        cmd_str += ' --leak_layer first --model_learning_rate 0.0001'
+        
+        print('Traing Attack model')
+        print(cmd_str)
+        os.system(cmd_str)

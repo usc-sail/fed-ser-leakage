@@ -73,8 +73,7 @@ def read_data_dict_by_client(dataset_list, fold_idx):
             for key in tmp_dict: tmp_dict[key]['dataset'] = dataset
 
         # test set will be the same
-        for key in test_dict:
-            return_test_dict[key] = test_dict[key].copy()
+        for key in test_dict: return_test_dict[key] = test_dict[key].copy()
         
         # we remake the data dict per speaker for the ease of local training
         speaker_data_dict = {}
