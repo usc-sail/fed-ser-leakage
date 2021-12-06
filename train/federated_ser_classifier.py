@@ -1,21 +1,21 @@
+from moviepy.tools import verbose_print
 import torch
 import torch.nn as nn
-import argparse
+import argparse, logging
 import torch.multiprocessing
-from torch.utils.data import DataLoader, dataset
+from torch.utils.data import DataLoader
 
 import numpy as np
 from pathlib import Path
 import pandas as pd
-import copy, time, pickle, shutil
-import sys, os
+import copy, time, pickle, shutil, sys, os, pdb
 from copy import deepcopy
 
-
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
-sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
+sys.path.append(os.path.join(os.path.abspath(os.path.curdir), 'model'))
 
 from baseline_models import dnn_classifier
+
 from update import average_weights, average_gradients
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -24,7 +24,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 import pytorch_lightning as pl
 
-import pdb
+pl.utilities.distributed.log.setLevel(logging.ERROR)
 
 # define label mapping
 emo_dict = {'neu': 0, 'hap': 1, 'sad': 2, 'ang': 3}
@@ -44,9 +44,6 @@ def save_result(save_index, acc, uar, best_epoch, dataset):
 
 
 class DatasetGenerator():
-    """An abstract Dataset class wrapped around Pytorch Dataset class.
-    """
-
     def __init__(self, dataset, idxs):
         self.dataset = dataset
         self.idxs = idxs
@@ -69,12 +66,10 @@ def read_data_dict_by_client(dataset_list, fold_idx):
     for dataset in dataset_list:
         with open(preprocess_path.joinpath(dataset, 'fold'+str(int(fold_idx+1)), 'training_'+args.norm+'.pkl'), 'rb') as f:
             train_dict = pickle.load(f)
-        with open(preprocess_path.joinpath(dataset, 'fold'+str(int(fold_idx+1)), 'validation_'+args.norm+'.pkl'), 'rb') as f:
-            validate_dict = pickle.load(f)
         with open(preprocess_path.joinpath(dataset, 'fold'+str(int(fold_idx+1)), 'test_'+args.norm+'.pkl'), 'rb') as f:
             test_dict = pickle.load(f)
         
-        for tmp_dict in [train_dict, validate_dict, test_dict]:
+        for tmp_dict in [train_dict, test_dict]:
             for key in tmp_dict: tmp_dict[key]['dataset'] = dataset
 
         # test set will be the same
@@ -83,22 +78,20 @@ def read_data_dict_by_client(dataset_list, fold_idx):
         
         # we remake the data dict per speaker for the ease of local training
         speaker_data_dict = {}
-        for tmp_dict in [train_dict, validate_dict]:
-            for key in tmp_dict:
-                speaker_id = str(tmp_dict[key]['speaker_id'])
-                if speaker_id not in speaker_data_dict: 
-                    speaker_data_dict[speaker_id] = []
-                speaker_data_dict[speaker_id].append(key)
+        for key in train_dict:
+            speaker_id = str(train_dict[key]['speaker_id'])
+            if speaker_id not in speaker_data_dict: 
+                speaker_data_dict[speaker_id] = []
+            speaker_data_dict[speaker_id].append(key)
         
         # in federated setting that the norm validation dict will be based on local client data
         # so we combine train_dict and validate_dict in centralized setting
         # then choose certain amount data per client as local validation set
         if dataset == 'crema-d':
-            for tmp_dict in [train_dict, validate_dict]:
-                for key in tmp_dict:
-                    speaker_id = str(tmp_dict[key]['speaker_id'])
-                    if speaker_id not in return_train_dict: return_train_dict[speaker_id] = {}
-                    return_train_dict[speaker_id][key] = tmp_dict[key].copy()
+            for key in train_dict:
+                speaker_id = str(train_dict[key]['speaker_id'])
+                if speaker_id not in return_train_dict: return_train_dict[speaker_id] = {}
+                return_train_dict[speaker_id][key] = train_dict[key].copy()
         else:
             # we want to divide speaker data if the dataset is iemocap or msp-improv to increase client size
             for speaker_id in speaker_data_dict:
@@ -107,13 +100,13 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                 idx_array = np.random.permutation(len(speaker_data_dict[speaker_id]))
                 key_list = speaker_data_dict[speaker_id]
                 split_array = np.array_split(idx_array, 10)
-                for i in range(len(split_array)):
+                for split_idx in range(len(split_array)):
                     # we randomly pick 10% of data
-                    idxs_train = split_array[i]
+                    idxs_train = split_array[split_idx]
                     for idx in idxs_train:
                         key = key_list[idx]
-                        if speaker_id+'_'+str(i) not in return_train_dict: return_train_dict[speaker_id+'_'+str(i)] = {}
-                        return_train_dict[speaker_id+'_'+str(i)][key] = train_dict[key].copy() if key in train_dict else validate_dict[key].copy()
+                        if speaker_id+'_'+str(split_idx) not in return_train_dict: return_train_dict[speaker_id+'_'+str(split_idx)] = {}
+                        return_train_dict[speaker_id+'_'+str(split_idx)][key] = train_dict[key].copy()
     return return_train_dict, return_test_dict
 
 if __name__ == '__main__':
@@ -123,27 +116,22 @@ if __name__ == '__main__':
 
     # argument parser
     parser = argparse.ArgumentParser(add_help=False)
-    
     parser.add_argument('--dataset', default='iemocap')
-    parser.add_argument('--feature_type', default='mel_spec')
-    parser.add_argument('--input_channel', default=1)
+    parser.add_argument('--feature_type', default='emobase')
     parser.add_argument('--dropout', default=0.2)
     parser.add_argument('--learning_rate', default=0.05)
-    parser.add_argument('--input_spec_size', default=128)
     parser.add_argument('--batch_size', default=20)
-    parser.add_argument('--aug', default=None)
     parser.add_argument('--use_gpu', default=True)
-    parser.add_argument('--num_epochs', default=150)
+    parser.add_argument('--num_epochs', default=200)
     parser.add_argument('--local_epochs', default=1)
-    parser.add_argument('--norm', default='min_max')
-    parser.add_argument('--win_len', default=200)
-    parser.add_argument('--optimizer', default='sgd')
+    parser.add_argument('--norm', default='znorm')
+    parser.add_argument('--optimizer', default='adam')
     parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')
+    parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
-    
-    root_path = Path('/media/data/projects/speech-privacy')
-    preprocess_path = root_path.joinpath('federated_learning', args.feature_type, args.pred)
+
+    preprocess_path = Path(args.save_dir).joinpath('federated_learning', args.feature_type, args.pred)
     
     # set seeds
     seed_everything(8, workers=True)
@@ -156,8 +144,6 @@ if __name__ == '__main__':
 
     # We perform 5 fold experiments
     for fold_idx in range(5):
-        torch.cuda.empty_cache()
-        
         # save folder details
         save_row_str = 'fold'+str(int(fold_idx+1))
         row_df = pd.DataFrame(index=[save_row_str])
@@ -186,9 +172,9 @@ if __name__ == '__main__':
         global_weights = global_model.state_dict()
         
         # log saving path
-        model_result_path = root_path.joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
+        model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
+        model_result_csv_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
         Path.mkdir(model_result_path, parents=True, exist_ok=True)
-        model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
         Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
 
         log_path = Path.joinpath(model_result_path, 'log')
@@ -209,10 +195,8 @@ if __name__ == '__main__':
         test_dataloaders = DataLoader(dataset_test, batch_size=20, num_workers=0, shuffle=False)
 
         # Training steps
-        result_dict = {}
-        best_score = 0
+        result_dict, best_score = {}, 0
         for epoch in range(int(args.num_epochs)):
-            torch.cuda.empty_cache()
             # we choose 10% of clients in training
             idxs_speakers = np.random.choice(range(num_of_speakers), int(0.1 * num_of_speakers), replace=False)
             
@@ -271,7 +255,6 @@ if __name__ == '__main__':
                 gradient_hist_dict[speaker_id] = {}
                 gradient_hist_dict[speaker_id]['gradient'] = gradients
                 gradient_hist_dict[speaker_id]['gender'] = train_speaker_dict[speaker_id][tmp_key]['gender']
-                
                 del local_model
 
             # 1.4 dump the gradients for the later usage
@@ -307,7 +290,7 @@ if __name__ == '__main__':
 
                 dataset_train = DatasetGenerator(train_speaker_dict[speaker_id], train_val_idx_dict[speaker_id]['val'])
                 val_dataloaders = DataLoader(dataset_train, batch_size=20, num_workers=0, shuffle=False)
-                val_result_dict = trainer.validate(copy.deepcopy(global_model), dataloaders=val_dataloaders)
+                val_result_dict = trainer.validate(copy.deepcopy(global_model), dataloaders=val_dataloaders, verbose=False)
                 
                 # save validation accuracy, uar, and loss
                 local_num_sampels.append(int(val_result_dict[0]['val_size']))
@@ -330,20 +313,18 @@ if __name__ == '__main__':
                         epoch, weighted_acc*100, weighted_rec*100, np.mean(validation_loss)))
             
             # 4. Perform the test on holdout set
-            test_result_dict = trainer.test(copy.deepcopy(global_model), dataloaders=test_dataloaders)
+            test_result_dict = trainer.test(copy.deepcopy(global_model), dataloaders=test_dataloaders, verbose=False)
             test_result_dict[0]['conf'] = trainer.model.test_conf
 
             # 5. Save the results for later
             result_dict[epoch] = {}
             result_dict[epoch]['train'] = {}
             result_dict[epoch]['train']['loss'] = sum(local_losses) / len(local_losses)
-            result_dict[epoch]['validate'] = validate_result
-            result_dict[epoch]['test'] = test_result_dict[0]
+            result_dict[epoch]['validate'], result_dict[epoch]['test'] = validate_result, test_result_dict[0]
             
             if validate_result['val_uar'] > best_score and epoch > 100:
                 best_val_acc, best_score = validate_result['val_acc'], validate_result['val_uar']
-                final_acc = test_result_dict[0]['test_acc']
-                final_recall = test_result_dict[0]['test_uar']
+                final_acc, final_recall = test_result_dict[0]['test_acc'], test_result_dict[0]['test_uar']
                 final_confusion = test_result_dict[0]['conf']
                 best_epoch, best_dict = epoch, test_result_dict[0].copy()
                 best_model = deepcopy(global_model.state_dict())
@@ -357,14 +338,11 @@ if __name__ == '__main__':
         # Performance save code
         row_df = save_result(save_row_str, best_dict['test_acc'], best_dict['test_uar'], best_epoch, args.dataset)
         save_result_df = pd.concat([save_result_df, row_df])
-        
-        model_result_csv_path = Path.cwd().parents[0].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
-        Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
         save_result_df.to_csv(str(model_result_csv_path.joinpath('private_'+ str(args.dataset) + '.csv')))
         
         # Save best model and training history
-        torch.save(best_model, str(model_result_csv_path.joinpath(save_row_str, 'model.pt')))
-        f = open(str(model_result_csv_path.joinpath(save_row_str, 'results.pkl')), "wb")
+        torch.save(best_model, str(model_result_path.joinpath('model.pt')))
+        f = open(str(model_result_path.joinpath('results.pkl')), "wb")
         pickle.dump(result_dict, f)
         f.close()
 

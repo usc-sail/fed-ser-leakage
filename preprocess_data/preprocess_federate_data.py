@@ -45,7 +45,6 @@ if __name__ == '__main__':
     # read args
     kf = KFold(n_splits=5, random_state=None, shuffle=False)
     fold_idx, feature_type, data_set_str = 1, args.feature_type, args.dataset
-
     for train_index, test_index in kf.split(speaker_id_arr):
         
         # 80% are training (80% of data on a client is for training, rest validation), and 20% are test

@@ -7,10 +7,6 @@ from tqdm import tqdm
 import opensmile, argparse, pickle, pdb
 
 
-def create_folder(folder):
-    if Path.exists(folder) is False: Path.mkdir(folder)
-
-
 if __name__ == '__main__':
 
     # Argument parser

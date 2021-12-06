@@ -12,13 +12,10 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-import sys, os, shutil, pickle, argparse
+import sys, os, shutil, pickle, argparse, pdb
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
-
 from attack_model import attack_model
-
-import pdb
 
 # some general mapping for this script
 gender_dict = {'F': 0, 'M': 1}
