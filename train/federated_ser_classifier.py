@@ -284,8 +284,8 @@ if __name__ == '__main__':
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
 
-                dataset_train = DatasetGenerator(train_speaker_dict[speaker_id], train_val_idx_dict[speaker_id]['val'])
-                val_dataloaders = DataLoader(dataset_train, batch_size=20, num_workers=0, shuffle=False)
+                dataset_validation = DatasetGenerator(train_speaker_dict[speaker_id], train_val_idx_dict[speaker_id]['val'])
+                val_dataloaders = DataLoader(dataset_validation, batch_size=20, num_workers=0, shuffle=False)
                 val_result_dict = trainer.validate(copy.deepcopy(global_model), dataloaders=val_dataloaders, verbose=False)
                 
                 # save validation accuracy, uar, and loss
