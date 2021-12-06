@@ -1,19 +1,6 @@
-taskset 200 python3 federated_attribute_attack.py --dataset iemocap --leak_layer first \
-                        --learning_rate 0.0005 --optimizer adam --model_type fed_avg \
-                        --adv_dataset msp-improv_crema-d --pred emotion --device 0 \
-                        --feature_type decoar2 --local_epochs 1 --norm znorm --num_epochs 200 \
-                        --model_learning_rate 0.0001 --dropout 0.6
-
-
-taskset 200 python3 federated_attribute_attack.py --dataset crema-d --leak_layer first \
-                        --learning_rate 0.0005 --optimizer adam --model_type fed_avg \
-                        --adv_dataset iemocap_msp-improv --pred emotion --device 0 \
-                        --feature_type decoar2 --local_epochs 1 --norm znorm --num_epochs 200 \
-                        --model_learning_rate 0.0001  --dropout 0.6
-
-
-taskset 200 python3 federated_attribute_attack.py --dataset msp-improv --leak_layer first \
-                        --learning_rate 0.0005 --optimizer adam --model_type fed_avg \
-                        --adv_dataset iemocap_crema-d --pred emotion --device 0 \
-                        --feature_type decoar2 --local_epochs 1 --norm znorm --num_epochs 200 \
-                        --model_learning_rate 0.0001 --dropout 0.6
+taskset 100 python3 train/federated_attribute_attack.py --norm znorm --optimizer adam \
+                                    --dataset iemocap --adv_dataset msp-improv_crema-d \
+                                    --feature_type emobase --dropout 0.2 --model_type fed_avg \
+                                    --learning_rate 0.0005 --local_epochs 1 --num_epochs 200 \
+                                    --leak_layer first --model_learning_rate 0.0001 \
+                                    --save_dir /media/data/projects/speech-privacy

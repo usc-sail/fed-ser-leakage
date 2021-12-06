@@ -110,9 +110,6 @@ def read_data_dict_by_client(dataset_list, fold_idx):
 
 if __name__ == '__main__':
 
-    # torch.cuda.empty_cache() 
-    torch.multiprocessing.set_sharing_strategy('file_system')
-
     # argument parser
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')

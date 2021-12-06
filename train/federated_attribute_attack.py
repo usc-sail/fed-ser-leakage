@@ -56,8 +56,6 @@ class AttackDataModule(pl.LightningDataModule):
     
 if __name__ == '__main__':
 
-    torch.multiprocessing.set_sharing_strategy('file_system')
-
     # argument parser
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--dataset', default='iemocap')
@@ -70,7 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_epochs', default=200)
     parser.add_argument('--local_epochs', default=5)
     parser.add_argument('--norm', default='znorm')
-    parser.add_argument('--device', default='1')
+    parser.add_argument('--device', default='0')
     parser.add_argument('--optimizer', default='sgd')
     parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')

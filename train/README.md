@@ -5,11 +5,13 @@ The scripts under this folder trains the SER model in FL and attack model.
 The bash file federated_ser_classifier.sh provides an example of running the preprocess python file. e.g.:
 
 ```sh
-python3 federated_ser_classifier.py --dataset iemocap --local_epochs 5 --learning_rate 0.05 --model_type fed_sgd \
-                        --feature_type apc --pred emotion --norm znorm --optimizer adam --dropout 0.2 --num_epochs 200
+python3 federated_ser_classifier.py --dataset iemocap --norm znorm \
+                        --feature_type emobase --dropout 0.2 --num_epochs 200 --local_epochs 1 \
+                        --optimizer adam --model_type fed_avg --learning_rate 0.0005 \
+                        --save_dir /media/data/projects/speech-privacy
 
 ```
-- The arg `dataset` specifies the data set. The support data sets are IEMOCAP (iemocap), MSP-Improv (msp-improv), and CREMA-D (crema-d). 
+- The arg `dataset` specifies the data set. The support data sets are IEMOCAP (iemocap), MSP-Improv (msp-improv), and CREMA-D (crema-d). We also support combining two dataset, like iemocap_crema-d will be combination of two data set for training shadow ser model. 
 
 - The arg `feature_type` is the feature reprentation type. Please refer to README under feature extraction for more details.
 
@@ -26,6 +28,8 @@ python3 federated_ser_classifier.py --dataset iemocap --local_epochs 5 --learnin
 - The arg `num_epochs` specifies the global epoch in FL.
 
 - The arg `learning_rate` specifies the learning rate in FL.
+
+- The arg `save_dir` specifies the root folder of saved data for the experiment.
 
 ### 1.1 This the code that average the gradients in fed_sgd
 ```python
@@ -83,11 +87,12 @@ preds = torch.log_softmax(preds, dim=1)
 The bash file federated_attribute_attack.sh provides an example of running the preprocess python file. e.g.:
 
 ```bash
-python3 federated_attribute_attack.py --dataset iemocap --leak_layer first \
-                        --learning_rate 0.0005 --optimizer adam --model_type fed_sgd \
-                        --adv_dataset msp-improv_crema-d --pred emotion --device 0 \
-                        --feature_type apc --local_epochs 1 --norm znorm --num_epochs 200 \
-                        --model_learning_rate 0.0001 --dropout 0.2
+taskset 100 python3 train/federated_attribute_attack.py --norm znorm --optimizer adam \
+                                    --dataset iemocap --adv_dataset msp-improv_crema-d \
+                                    --feature_type emobase --dropout 0.2 --model_type fed_avg \
+                                    --learning_rate 0.0005 --local_epochs 1 --num_epochs 200 \
+                                    --leak_layer first --model_learning_rate 0.0001 \
+                                    --save_dir /media/data/projects/speech-privacy
 ```
 
 - The arg `dataset` specifies the private training data set. The support data sets are IEMOCAP (iemocap), MSP-Improv (msp-improv), and CREMA-D (crema-d). 
@@ -111,3 +116,5 @@ python3 federated_attribute_attack.py --dataset iemocap --leak_layer first \
 - The arg `learning_rate` specifies the learning rate in FL.
 
 - The arg `model_learning_rate` specifies the learning rate in training the attack model.
+
+- The arg `save_dir` specifies the root folder of saved data for the experiment.
