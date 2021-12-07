@@ -45,6 +45,13 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
+## Attack Problem setup
+
+The figure shows the problem setup of the attribute inference attack in this work. **The primary application is SER**, where the **adversaries (the outside attacker or the curious server) attempt to predict the gender (the sensitive attribute)** using the shared model updates training the SER model.
+
+
+<p align="center"><img src="model/attack_problem.png" width="450"></p>
+
 
 ## Attack framework
 
