@@ -1,8 +1,8 @@
-# Attribute Information leakage of SER application in Federated Learning
+# Attribute Information Leakage of SER Application in Federated Learning
 This repository contains the official implementation (in [PyTorch](https://pytorch.org/) and [PyTorch Lightning](https://www.pytorchlightning.ai/)) of Attribute Inference Attack of Speech Emotion Recognition in Federated Learning.
 
 
-## Speech features
+## Speech Features
 
 We extract a variety of speech representations using OpenSMILE toolkit and pretrained models. You can refer to [OpenSMILE](https://www.audeering.com/research/opensmile/) and [SUPERB](https://arxiv.org/abs/2105.01051) paper for more information.
 
@@ -45,7 +45,7 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 
 ![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
 
-## Attack Problem setup
+## Attack Problem Setup
 
 The figure shows the problem setup of the attribute inference attack in this work. **The primary application is SER**, where the **adversaries (the outside attacker or the curious server) attempt to predict the gender (the sensitive attribute)** using the shared model updates training the SER model.
 
@@ -53,7 +53,7 @@ The figure shows the problem setup of the attribute inference attack in this wor
 <p align="center"><img src="model/attack_problem.png" width="450"></p>
 
 
-## Attack framework
+## Attack Framework
 
 Our attack framework mimics the attack framework commonly used in the membership inference attack (MIA). The attack framework consists of training shadow models, forming attack trianing data set, and training the attack model as shown below.
 
@@ -64,11 +64,11 @@ Our attack framework mimics the attack framework commonly used in the membership
 The idea of the shadow training is to mimic the private training. Here, we train each shadow model with the same hyperparameters used in the private FL training. We train 5 shadow models in our experiment.
 
 
-#### 2. Constructing attack training data set
+#### 2. Constructing Attack Training Data Set
 
 Here, we construct our attack training data set using the gradients input data and the client's gender label. We pick 80% of the data as training, and rest as validation. The test set are the shared model updates generated in the private training, and the attack model aims to predict the gender label of the client in the private training data set.
 
-#### 3. Attack model
+#### 3. Attack Model
 
 Our attack model architecture is shown below: 
 
