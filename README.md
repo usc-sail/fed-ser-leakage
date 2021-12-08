@@ -1,5 +1,5 @@
 # Attribute Information Leakage of SER Application in Federated Learning
-This repository contains the official implementation (in [PyTorch](https://pytorch.org/) and [PyTorch Lightning](https://www.pytorchlightning.ai/)) of Attribute Inference Attack of Speech Emotion Recognition in Federated Learning.
+This repository contains the official implementation (in [PyTorch](https://pytorch.org/)) of Attribute Inference Attack of Speech Emotion Recognition in Federated Learning.
 
 
 ## Speech Features
@@ -34,11 +34,11 @@ Two common scenarios in FL are:
 
 #### 1. FedSGD (gradients are shared): 
 
-<p align="center"><img src="model/fed_sgd.png" width="200"></p>
+<p align="center"><img src="img/fed_sgd.png" width="200"></p>
 
 #### 2. FedAvg (model parameters are shared): 
 
-<p align="center"><img src="model/fed_avg.png" width="200"></p>
+<p align="center"><img src="img/fed_avg.png" width="200"></p>
 
 
 Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. In the baseline experiment, we set the learning rate as 0.05 and 0.0005 in FedSGD and FedAvg, respectively. The local batch size is 20, and global training epoch is set to 200. 10% of the clients participant in each global training epoch.
@@ -50,14 +50,14 @@ Table shows the prediction results of the SER model trained in two FL scenarios:
 The figure shows the problem setup of the attribute inference attack in this work. **The primary application is SER**, where the **adversaries (the outside attacker or the curious server) attempt to predict the gender (the sensitive attribute)** using the shared model updates training the SER model.
 
 
-<p align="center"><img src="model/attack_problem.png" width="450"></p>
+<p align="center"><img src="img/attack_problem.png" width="450"></p>
 
 
 ## Attack Framework
 
 Our attack framework mimics the attack framework commonly used in the membership inference attack (MIA). The attack framework consists of training shadow models, forming attack trianing data set, and training the attack model as shown below.
 
-<p align="center"><img src="model/attack_framework.png"></p>
+<p align="center"><img src="img/attack_framework.png"></p>
 
 #### 1. Shadow Training
 
@@ -72,27 +72,27 @@ Here, we construct our attack training data set using the gradients input data a
 
 Our attack model architecture is shown below: 
 
-<p align="center"><img src="model/attack_model.png"></p>
+<p align="center"><img src="img/attack_model.png"></p>
 
 ## So how easy is the attack?
 
 The short answer is: inferring gender (UAR score in the table) of the client using the shared model updates is a trivial task when training the SER model in both FedSGD and FedAvg.
 
-<p align="center"><img src="results/attack_result.png" width="450"></p>
+<p align="center"><img src="img/attack_result.png" width="450"></p>
 
 
 ## So which layer leaks most information in this attack?
 
 The short answer is: the shared updates between feature input and first dense layer (UAR score in the table).
 
-<p align="center"><img src="results/attack_layer_result.png"></p>
+<p align="center"><img src="img/attack_layer_result.png"></p>
 
 
 ## So will the dropout decrease the attack performance?
 
 The short answer is: the increased dropout makes the attack stronger in this attack (UAR score in the table).
 
-<p align="center"><img src="results/attack_dropout.png"></p>
+<p align="center"><img src="img/attack_dropout.png"></p>
 
 ## Referecences
 
