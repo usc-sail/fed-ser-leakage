@@ -28,7 +28,7 @@ Let's recap the basic of the FL.
 3. Finally, the server aggregates the model updates to obtain the global model for the next training round. 
 
 
-![Alt text](model/fl_global.png?raw=true "Federated Learning")
+![Alt text](img/fl_global.png?raw=true "Federated Learning")
 
 Two common scenarios in FL are:
 
@@ -43,7 +43,7 @@ Two common scenarios in FL are:
 
 Table shows the prediction results of the SER model trained in two FL scenarios: FedSGD and FedAvg. We report the accuracy and unweighted average recall (UAR) scores of the SER task on each individual data set. In the baseline experiment, we set the learning rate as 0.05 and 0.0005 in FedSGD and FedAvg, respectively. The local batch size is 20, and global training epoch is set to 200. 10% of the clients participant in each global training epoch.
 
-![Alt text](results/fl_result.png?raw=true "Federated Learning - SER results")
+![Alt text](img/fl_result.png?raw=true "Federated Learning - SER results")
 
 ## Attack Problem Setup
 
