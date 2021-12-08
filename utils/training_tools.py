@@ -76,46 +76,27 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 
-def ReturnResultDict(truth_dict, predict_dict, dataset, pred, mode='test', loss=None, epoch=None):
+def result_summary(step_outputs, mode, epoch):
+    loss_list, y_true, y_pred = [], [], []
+    for step in range(len(step_outputs)):
+        for idx in range(len(step_outputs[step]['pred'])):
+            y_true.append(step_outputs[step]['truth'][idx])
+            y_pred.append(step_outputs[step]['pred'][idx])
+        loss_list.append(step_outputs[step]['loss'])
+
     result_dict = {}
-    result_dict[dataset] = {}
-    result_dict[dataset]['acc'] = {}
-    result_dict[dataset]['rec'] = {}
-    result_dict[dataset]['loss'] = {}
-    result_dict[dataset]['conf'] = {}
+    acc_score = accuracy_score(y_true, y_pred)
+    rec_score = recall_score(y_true, y_pred, average='macro')
+    confusion_matrix_arr = np.round(confusion_matrix(y_true, y_pred, normalize='true')*100, decimals=2)
     
-    acc_score = accuracy_score(truth_dict[dataset], predict_dict[dataset])
-    rec_score = recall_score(truth_dict[dataset], predict_dict[dataset], average='macro')
-    confusion_matrix_arr = np.round(confusion_matrix(truth_dict[dataset], predict_dict[dataset], normalize='true')*100, decimals=2)
+    result_dict['acc'] = acc_score
+    result_dict['uar'] = rec_score
+    result_dict['conf'] = confusion_matrix_arr
+    result_dict['loss'] = np.mean(loss_list)
+    result_dict['num_samples'] = len(y_pred)
 
-    print('Total %s, %s accuracy %.3f / recall %.3f after %d' % (dataset, mode, acc_score, rec_score, epoch))
+    print('%s accuracy %.3f / recall %.3f / loss %.3f after %d' % (mode, acc_score, rec_score, np.mean(loss_list), epoch))
     print(confusion_matrix_arr)
-
-    result_dict[dataset]['acc'][pred] = acc_score
-    result_dict[dataset]['rec'][pred] = rec_score
-    result_dict[dataset]['conf'][pred] = confusion_matrix_arr
-    result_dict[dataset]['loss'][pred] = loss
-
-    if 'combine' in dataset:
-        tmp_list = ['iemocap', 'crema-d', 'msp-improv'] if dataset == 'combine' else ['iemocap', 'crema-d']
-        for tmp_str in tmp_list:
-            result_dict[tmp_str] = {}
-            result_dict[tmp_str]['acc'] = {}
-            result_dict[tmp_str]['rec'] = {}
-            result_dict[tmp_str]['loss'] = {}
-            result_dict[tmp_str]['conf'] = {}
-
-            acc_score = accuracy_score(truth_dict[tmp_str], predict_dict[tmp_str])
-            rec_score = recall_score(truth_dict[tmp_str], predict_dict[tmp_str], average='macro')
-            confusion_matrix_arr = np.round(confusion_matrix(truth_dict[tmp_str], predict_dict[tmp_str], normalize='true')*100, decimals=2)
-
-            print('%s: total %s accuracy %.3f / recall %.3f after %d' % (tmp_str, mode, acc_score, rec_score, epoch))
-            print(confusion_matrix_arr)
-
-            result_dict[tmp_str]['acc'][pred] = acc_score
-            result_dict[tmp_str]['rec'][pred] = rec_score
-            result_dict[tmp_str]['conf'][pred] = confusion_matrix_arr
-    
     return result_dict
 
 
