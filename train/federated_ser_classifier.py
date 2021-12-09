@@ -97,18 +97,18 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                 
                 idx_array = np.random.permutation(len(train_speaker_data_dict[speaker_id]))
                 perm_array = np.random.permutation(len(idx_array))
-                return_train_dict[speaker_id+'_'+str(split_idx)] = {}
-                return_train_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
-                return_train_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
-                return_train_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
-                return_train_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[:int(0.8*len(x))]]
+                return_train_dict[speaker_id] = {}
+                return_train_dict[speaker_id]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
+                return_train_dict[speaker_id]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
+                return_train_dict[speaker_id]['gender'] = train_dict[data_key]['gender']
+                return_train_dict[speaker_id]['dataset'] = [dataset_list[idx] for idx in perm_array[:int(0.8*len(x))]]
 
                 # We save the utterance keys used for training and validation per speaker (client)
-                return_val_dict[speaker_id+'_'+str(split_idx)] = {}
-                return_val_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
-                return_val_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
-                return_val_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
-                return_val_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[int(0.8*len(x)):]]
+                return_val_dict[speaker_id] = {}
+                return_val_dict[speaker_id]['data'] = x[perm_array[int(0.8*len(x)):]].copy()
+                return_val_dict[speaker_id]['label'] = y[perm_array[int(0.8*len(x)):]].copy()
+                return_val_dict[speaker_id]['gender'] = train_dict[data_key]['gender']
+                return_val_dict[speaker_id]['dataset'] = [dataset_list[idx] for idx in perm_array[int(0.8*len(x)):]]
         else:
             # we want to divide speaker data if the dataset is iemocap or msp-improv to increase client size
             for speaker_id in train_speaker_data_dict:
@@ -139,8 +139,8 @@ def read_data_dict_by_client(dataset_list, fold_idx):
 
                     # We save the utterance keys used for training and validation per speaker (client)
                     return_val_dict[speaker_id+'_'+str(split_idx)] = {}
-                    return_val_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
-                    return_val_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[int(0.8*len(x)):]].copy()
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[int(0.8*len(x)):]].copy()
                     return_val_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
                     return_val_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[int(0.8*len(x)):]]
                     
