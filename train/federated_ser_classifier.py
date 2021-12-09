@@ -50,7 +50,7 @@ class DatasetGenerator():
 
 def read_data_dict_by_client(dataset_list, fold_idx):
     
-    return_train_dict, return_test_dict = {}, {}
+    return_train_dict, return_val_dict, return_test_dict = {}, {}, {}
     dataset_label_list = []
     # prepare the data for the training
     for dataset in dataset_list:
@@ -94,12 +94,21 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                 for idx, data_key in enumerate(speaker_data_key_list):
                     x[idx], y[idx] = train_dict[data_key]['data'], int(emo_dict[train_dict[data_key]['label']])
                     dataset_list.append(train_dict[data_key]['dataset'])
+                
+                idx_array = np.random.permutation(len(train_speaker_data_dict[speaker_id]))
+                perm_array = np.random.permutation(len(idx_array))
+                return_train_dict[speaker_id+'_'+str(split_idx)] = {}
+                return_train_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
+                return_train_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
+                return_train_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
+                return_train_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[:int(0.8*len(x))]]
 
-                return_train_dict[speaker_id] = {}
-                return_train_dict[speaker_id]['data'] = x
-                return_train_dict[speaker_id]['label'] = y
-                return_train_dict[speaker_id]['gender'] = train_dict[data_key]['gender']
-                return_train_dict[speaker_id]['dataset'] = dataset_list
+                # We save the utterance keys used for training and validation per speaker (client)
+                return_val_dict[speaker_id+'_'+str(split_idx)] = {}
+                return_val_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
+                return_val_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
+                return_val_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
+                return_val_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[int(0.8*len(x)):]]
         else:
             # we want to divide speaker data if the dataset is iemocap or msp-improv to increase client size
             for speaker_id in train_speaker_data_dict:
@@ -120,12 +129,22 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                         dataset_list.append(train_dict[data_key]['dataset'])
                         # if speaker_id+'_'+str(split_idx) not in return_train_dict: return_train_dict[speaker_id+'_'+str(split_idx)] = {}
                         # return_train_dict[speaker_id+'_'+str(split_idx)][key] = train_dict[key].copy()
+                    
+                    perm_array = np.random.permutation(len(idxs_train))
                     return_train_dict[speaker_id+'_'+str(split_idx)] = {}
-                    return_train_dict[speaker_id+'_'+str(split_idx)]['data'] = x
-                    return_train_dict[speaker_id+'_'+str(split_idx)]['label'] = y
+                    return_train_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
+                    return_train_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
                     return_train_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
-                    return_train_dict[speaker_id+'_'+str(split_idx)]['dataset'] = dataset_list
-    return return_train_dict, return_test_dict
+                    return_train_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[:int(0.8*len(x))]]
+
+                    # We save the utterance keys used for training and validation per speaker (client)
+                    return_val_dict[speaker_id+'_'+str(split_idx)] = {}
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['label'] = y[perm_array[:int(0.8*len(x))]].copy()
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['gender'] = train_dict[data_key]['gender']
+                    return_val_dict[speaker_id+'_'+str(split_idx)]['dataset'] = [dataset_list[idx] for idx in perm_array[int(0.8*len(x)):]]
+                    
+    return return_train_dict, return_val_dict, return_test_dict
 
 if __name__ == '__main__':
 
@@ -170,17 +189,8 @@ if __name__ == '__main__':
         # model_setting_str += '_local_dp_' + str(args.local_dp).replace('.', '')
         
         # Read the data per speaker
-        train_speaker_dict, test_speaker_dict = read_data_dict_by_client(dataset_list, fold_idx)
+        train_speaker_dict, val_speaker_dict, test_speaker_dict = read_data_dict_by_client(dataset_list, fold_idx)
         num_of_speakers, speaker_list = len(train_speaker_dict), list(set(train_speaker_dict.keys()))
-        
-        # We save the utterance keys used for training and validation per speaker (client)
-        train_val_idx_dict = {}
-        for speaker_id in train_speaker_dict:
-            idx_array = np.random.permutation(len(train_speaker_dict[speaker_id]))
-            train_val_idx_dict[speaker_id], tmp_keys = {}, list(train_speaker_dict[speaker_id].keys())
-            train_val_idx_dict[speaker_id]['train'], train_val_idx_dict[speaker_id]['val'] = [], []
-            for idx in idx_array[:int(0.8*len(idx_array))]: train_val_idx_dict[speaker_id]['train'].append(tmp_keys[idx])
-            for idx in idx_array[int(0.8*len(idx_array)):]: train_val_idx_dict[speaker_id]['val'].append(tmp_keys[idx])
         
         # Define the model
         global_model = dnn_classifier(pred='emotion', input_spec=feature_len_dict[args.feature_type], dropout=float(args.dropout))
@@ -217,7 +227,6 @@ if __name__ == '__main__':
             # 1. Local training, return weights in fed_avg, return gradients in fed_sgd
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
-                print('speaker id %s' % (speaker_id))
                 
                 # 1.1 Local training
                 dataset_train = DatasetGenerator(train_speaker_dict[speaker_id])
@@ -234,6 +243,8 @@ if __name__ == '__main__':
                 # read params to save
                 local_losses.append(train_result['loss'])
                 local_num_sampels.append(train_result['num_samples'])
+
+                print('speaker id %s sample size %d' % (speaker_id, train_result['num_samples']))
                 
                 # 1.2 calculate and save the raw gradients or pseudo gradients
                 gradients = []
@@ -294,7 +305,7 @@ if __name__ == '__main__':
             # 3.1 Iterate each client at the current global round, calculate the performance
             for idx in idxs_speakers:
                 speaker_id = speaker_list[idx]
-                dataset_validation = DatasetGenerator(train_speaker_dict[speaker_id])
+                dataset_validation = DatasetGenerator(val_speaker_dict[speaker_id])
                 val_dataloaders = DataLoader(dataset_validation, batch_size=20, num_workers=0, shuffle=False)
                 
                 trainer = local_trainer(args, device, criterion, args.model_type, val_dataloaders)
@@ -318,7 +329,7 @@ if __name__ == '__main__':
             validate_result['loss'] = np.mean(validation_loss)
 
             print('| Global Round validation : {} | \tacc: {:.2f}% | \tuar: {:.2f}% | \tLoss: {:.6f}\n'.format(
-                        epoch, weighted_acc*100, weighted_rec*100, np.mean(validation_loss)))
+                        epoch, weighted_acc*100, weighted_rec*100, train_result['loss']))
             
             # 4. Perform the test on holdout set
             trainer = local_trainer(args, device, criterion, args.model_type, test_dataloaders)
@@ -330,8 +341,8 @@ if __name__ == '__main__':
             result_dict[epoch]['train']['loss'] = sum(local_losses) / len(local_losses)
             result_dict[epoch]['validate'] = validate_result
             result_dict[epoch]['test'] = test_result
-
-            if epoch == 0: best_epoch, best_val_dict = 0, validate_result
+            
+            if epoch == 0: best_epoch, best_val_dict, best_test_dict = 0, validate_result, test_result
             if validate_result['uar'] > best_val_dict['uar'] and epoch > 100:
                 # Save best model and training history
                 best_epoch, best_val_dict, best_test_dict = epoch, validate_result, test_result
