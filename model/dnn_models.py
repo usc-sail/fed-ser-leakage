@@ -33,10 +33,8 @@ class dnn_classifier(nn.Module):
     def init_weight(self):
         for m in self._modules:
             if type(m) == nn.Linear:
-                torch.nn.init.xavier_uniform(m.weight)
-                m.bias.data.fill_(0.01)
-            if type(m) == nn.Conv2d:
-                torch.nn.init.xavier_uniform(m.weight)
+                # torch.nn.init.xavier_uniform(m.weight)
+                nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
                 m.bias.data.fill_(0.01)
 
     def forward(self, input_var):
