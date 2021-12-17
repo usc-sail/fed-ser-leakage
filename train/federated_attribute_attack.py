@@ -62,6 +62,7 @@ def run_one_epoch(model, data_loader, optimizer, scheduler, loss_func, epoch, mo
 
         # step the loss back
         if mode == 'train':
+            model.zero_grad()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -96,9 +97,10 @@ if __name__ == '__main__':
     parser.add_argument('--pred', default='emotion')
     parser.add_argument('--leak_layer', default='full')
     parser.add_argument('--dropout', default=0.2)
+    parser.add_argument('--privacy_budget', default=None)
     parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
-    
+
     seed_worker(8)
     device = torch.device("cuda:"+str(args.device)) if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
@@ -106,6 +108,7 @@ if __name__ == '__main__':
     model_setting_str = 'local_epoch_'+str(args.local_epochs) if args.model_type == 'fed_avg' else 'local_epoch_1'
     model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
     model_setting_str += '_lr_' + str(args.learning_rate)[2:]
+    if args.privacy_budget is not None: model_setting_str += '_udp_' + str(args.privacy_budget)
 
     torch.cuda.empty_cache() 
     torch.multiprocessing.set_sharing_strategy('file_system')
@@ -123,9 +126,10 @@ if __name__ == '__main__':
 
     # 1.1 read all data and compute the tmp variables
     shadow_training_sample_size, shadow_data_dict = 0, {}
+    print('reading file %s' % str(Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str)))
     for shadow_idx in range(5):
         for epoch in range(int(args.num_epochs)):
-            adv_federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
+            adv_federated_model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
             file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             # if shadow_idx == 0 and epoch < 10:
             if epoch % 20 == 0: 
@@ -167,7 +171,7 @@ if __name__ == '__main__':
     validation_loader =DataLoader(dataset_valid, batch_size=20, num_workers=0, shuffle=False)
     
     # 2.3 initialize the early_stopping object
-    early_stopping = EarlyStopping(patience=5, verbose=True)
+    early_stopping = EarlyStopping(patience=10, verbose=True)
     loss = nn.NLLLoss().to(device)
     
     # 2.4 log saving path
@@ -178,7 +182,7 @@ if __name__ == '__main__':
     
     # 2.5 training attack model
     result_dict, best_val_dict = {}, {}
-    for epoch in range(30):
+    for epoch in range(40):
         # perform the training, validate, and test
         train_result = run_one_epoch(model, train_loader, optimizer, scheduler, loss, epoch, mode='train')
         validate_result = run_one_epoch(model, validation_loader, optimizer, scheduler, loss, epoch, mode='validate')
@@ -188,24 +192,28 @@ if __name__ == '__main__':
         result_dict[epoch]['train'], result_dict[epoch]['validate'] = train_result, validate_result
         
         if len(best_val_dict) == 0: best_val_dict, best_epoch = validate_result, epoch
-        if validate_result['uar'] > best_val_dict['uar'] and epoch > 10:
+        if validate_result['uar'] > best_val_dict['uar'] and epoch > 30:
             best_val_dict, best_epoch = validate_result, epoch
             best_model = deepcopy(model.state_dict())
+            torch.save(deepcopy(model.state_dict()), str(attack_model_result_path.joinpath('private_'+args.dataset+'.pt')))
             
         # early_stopping needs the validation loss to check if it has decresed, 
         # and if it has, it will make a checkpoint of the current model
-        if epoch > 10: early_stopping(validate_result['loss'], model)
+        if epoch > 30: early_stopping(validate_result['loss'], model)
 
         # print(final_acc, best_val_acc, best_epoch)
         print('best epoch %d, best final acc %.2f, best final uar %.2f' % (best_epoch, best_val_dict['acc']*100, best_val_dict['uar']*100))
         print(best_val_dict['conf'])
         
-        if early_stopping.early_stop and epoch > 10:
+        if early_stopping.early_stop and epoch > 30:
             print("Early stopping")
             break
 
     # 3. we evaluate the attacker performance on service provider training
     save_result_df = pd.DataFrame()
+    eval_model = attack_model(args.leak_layer, args.feature_type)
+    eval_model.load_state_dict(torch.load(str(attack_model_result_path.joinpath('private_'+args.dataset+'.pt'))))
+    eval_model = eval_model.to(device)
     # 3.1 we perform 5 fold evaluation, since we also train the private data 5 times
     for fold_idx in range(5):
         test_data_dict = {}
@@ -213,7 +221,7 @@ if __name__ == '__main__':
             row_df = pd.DataFrame(index=['fold'+str(int(fold_idx+1))])
             
             # Model related
-            federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
+            federated_model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
             weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
 
             with open(weight_file_str, 'rb') as f:
@@ -228,7 +236,7 @@ if __name__ == '__main__':
 
         dataset_test = WeightDataGenerator(list(test_data_dict.keys()), test_data_dict)
         test_loader = DataLoader(dataset_test, batch_size=20, num_workers=0, shuffle=False)
-        test_result = run_one_epoch(model, test_loader, optimizer, scheduler, loss, best_epoch, mode='test')
+        test_result = run_one_epoch(eval_model, test_loader, optimizer, scheduler, loss, best_epoch, mode='test')
     
         row_df['acc'], row_df['uar'] = test_result['acc'], test_result['uar']
         save_result_df = pd.concat([save_result_df, row_df])

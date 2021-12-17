@@ -162,7 +162,6 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', default='adam')
     parser.add_argument('--model_type', default='fed_sgd')
     parser.add_argument('--pred', default='emotion')
-    parser.add_argument('--local_dp', default=0.1)
     parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
 
@@ -174,7 +173,7 @@ if __name__ == '__main__':
     dataset_list = args.dataset.split('_')
 
     # find device
-    device = torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
+    device = torch.device("cuda:1") if torch.cuda.is_available() else "cpu"
     if torch.cuda.is_available(): print('GPU available, use GPU')
 
     # We perform 5 fold experiments
@@ -201,7 +200,8 @@ if __name__ == '__main__':
         criterion = nn.NLLLoss().to(device)
         
         # log saving path
-        model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
+        # model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
+        model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
         model_result_csv_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
         Path.mkdir(model_result_path, parents=True, exist_ok=True)
         Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
@@ -303,7 +303,7 @@ if __name__ == '__main__':
             # 3. Calculate avg validation accuracy/uar over all selected users at every epoch
             validation_acc, validation_uar, validation_loss, local_num_sampels = [], [], [], []
             # 3.1 Iterate each client at the current global round, calculate the performance
-            for idx in idxs_speakers:
+            for idx in range(num_of_speakers):
                 speaker_id = speaker_list[idx]
                 dataset_validation = DatasetGenerator(val_speaker_dict[speaker_id])
                 val_dataloaders = DataLoader(dataset_validation, batch_size=20, num_workers=0, shuffle=False)
@@ -343,12 +343,12 @@ if __name__ == '__main__':
             result_dict[epoch]['test'] = test_result
             
             if epoch == 0: best_epoch, best_val_dict, best_test_dict = 0, validate_result, test_result
-            if validate_result['uar'] > best_val_dict['uar'] and epoch > 100:
+            if validate_result['uar'] > best_val_dict['uar'] and epoch > 150:
                 # Save best model and training history
                 best_epoch, best_val_dict, best_test_dict = epoch, validate_result, test_result
                 torch.save(deepcopy(global_model.state_dict()), str(model_result_path.joinpath('model.pt')))
             
-            if epoch > 100:
+            if epoch > 150:
                 # log results
                 print('best epoch %d, best final acc %.2f, best val acc %.2f' % (best_epoch, best_test_dict['acc']*100, best_val_dict['acc']*100))
                 print('best epoch %d, best final rec %.2f, best val rec %.2f' % (best_epoch, best_test_dict['uar']*100, best_val_dict['uar']*100))
