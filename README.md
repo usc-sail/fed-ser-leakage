@@ -94,7 +94,20 @@ The short answer is: the increased dropout makes the attack stronger in this att
 
 <p align="center"><img src="img/attack_dropout.png"></p>
 
-## Referecences
+
+If you want to cite this work, please use:
+
+```
+@misc{feng2021attribute,
+      title={Attribute Inference Attack of Speech Emotion Recognition in Federated Learning Settings}, 
+      author={Tiantian Feng and Hanieh Hashemi and Rajat Hebbar and Murali Annavaram and Shrikanth S. Narayanan},
+      year={2021},
+      eprint={2112.13416},
+      archivePrefix={arXiv}
+}
+```
+
+## Other Referecences
 
 
 **[OpenSMILE](https://www.audeering.com/research/opensmile/)**
