@@ -95,7 +95,7 @@ The short answer is: the increased dropout makes the attack stronger in this att
 <p align="center"><img src="img/attack_dropout.png"></p>
 
 
-If you want to cite this work, please use:
+## If you want to cite this work, please use:
 
 ```
 @misc{feng2021attribute,
