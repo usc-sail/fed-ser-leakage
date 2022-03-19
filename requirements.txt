@@ -3,7 +3,7 @@ numpy==1.19.5
 opensmile==2.2.0
 pandas==1.1.5
 python_speech_features==0.6
-pytorch_lightning==1.5.1
+pytorch_lightning==1.6.0
 s3prl==0.3.1
 s3prl.egg==info
 scikit_learn==1.0.1
