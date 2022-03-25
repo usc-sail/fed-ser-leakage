@@ -4,10 +4,10 @@ The idea of the LDP is to perturb the local data using the mechanism $\mathcal{M
 
 **1. We can define the (![formula](https://render.githubusercontent.com/render/math?math=\epsilon,\delta))-LDP as follows:**
 
-A random mechanism $\mathcal{M}$ satisfies $(\epsilon, \delta)$-LDP, where $\epsilon>0$ and $\delta\in[0, 1)$, if and only if for any two adjacent data sets $\mathcal{D}$ and $\mathcal{D'}$ in universe $\mathcal{X}$, we have:
+A random mechanism ![formula](https://render.githubusercontent.com/render/math?math=\mathcal{M}) satisfies (![formula](https://render.githubusercontent.com/render/math?math=\epsilon,\delta))-LDP, where $\epsilon>0$ and $\delta\in[0, 1)$, if and only if for any two adjacent data sets $\mathcal{D}$ and $\mathcal{D'}$ in universe $\mathcal{X}$, we have:
 
 $$
-  Pr(\mathcal{M}(\mathcal{D})) \leq e^{\epsilon} Pr(\mathcal{M}(\mathcal{D'})) + \delta
+  ![formula](https://render.githubusercontent.com/render/math?math=Pr(\mathcal{M}(\mathcal{D}))\leq\;e^{\epsilon}Pr(\mathcal{M}(\mathcal{D'}))+\delta)
 $$
 
 **2. In this work, we select the Gaussian mechanism using $L_{2}$ norm sensitivity. In this setup, we perturb a sample output $s(x)$ by adding Gaussian noise with zero-mean and variance $\sigma^2\mathbf{I}$ for a given function $s(x)$ as below:**
