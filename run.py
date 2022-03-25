@@ -45,7 +45,7 @@ if __name__ == '__main__':
         for dataset in [config['dataset']['private_dataset'], config['dataset']['adv_dataset']]:
             for feature in ['emobase', 'apc', 'vq_apc', 'tera', 'decoar2']:
                 if config['model'].getboolean('udp'):
-                    cmd_str = 'taskset 300 python3 train/federated_ser_classifier_udp.py --dataset ' + dataset
+                    cmd_str = 'taskset 300 python3 mitigation/federated_ser_classifier_udp.py --dataset ' + dataset
                     cmd_str += ' --privacy_budget ' + config['model']['privacy_budget']
                 else:
                     cmd_str = 'taskset 300 python3 train/federated_ser_classifier.py --dataset ' + dataset
@@ -106,7 +106,7 @@ if __name__ == '__main__':
             for feature in ['tera', 'decoar2', 'emobase', 'apc', 'vq_apc']:
                 for privacy_budget in [0, 5, 10, 25, 50]:
                 # for privacy_budget in [5]:
-                    cmd_str = 'taskset 500 python3 train/federated_attribute_attack_result_per_speaker.py'
+                    cmd_str = 'taskset 500 python3 mitigation/federated_attribute_attack_result_per_speaker.py'
                     cmd_str += ' --norm znorm'
                     cmd_str += ' --dataset ' + dataset_list[0]
                     cmd_str += ' --adv_dataset ' + dataset_list[1]
