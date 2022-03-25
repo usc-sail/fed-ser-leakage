@@ -2,7 +2,7 @@
 
 The idea of the LDP is to perturb the local data using the mechanism $\mathcal{M}$ such that the data perturbation is guaranteed to protect from inference attacks given parameters $\epsilon$ and $\delta$.
 
-**1. We can define the $(\epsilon, \delta)$-LDP as follows:**
+**1. We can define the (![formula](https://render.githubusercontent.com/render/math?math=\epsilon,\delta))-LDP as follows:**
 
 A random mechanism $\mathcal{M}$ satisfies $(\epsilon, \delta)$-LDP, where $\epsilon>0$ and $\delta\in[0, 1)$, if and only if for any two adjacent data sets $\mathcal{D}$ and $\mathcal{D'}$ in universe $\mathcal{X}$, we have:
 
