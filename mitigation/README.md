@@ -1,10 +1,11 @@
 # User-level DP training
 
-The idea of the LDP is to perturb the local data using the mechanism $\mathcal{M}$ such that the data perturbation is guaranteed to protect from inference attacks given parameters $\epsilon$ and $\delta$.
+The idea of the LDP is to perturb the local data using the mechanism $$\mathcal{M}$$ such that the data perturbation is guaranteed to protect from inference attacks given parameters $$\epsilon$$ and $$\delta$$.
 
-## If you find our work useful, you should also cite (and learn) these works:  
+## If you find our work useful, you should also cite (and learn) these works  
 
 **[UDP](https://arxiv.org/pdf/2003.00229.pdf)**
+
 ```
 @article{wei2021user,
   title={User-level privacy-preserving federated learning: Analysis and performance optimization},
@@ -15,8 +16,8 @@ The idea of the LDP is to perturb the local data using the mechanism $\mathcal{M
 }
 ```
 
-
 **[Deep learning withh DP](https://arxiv.org/pdf/2003.00229.pdf)**
+
 ```
 @inproceedings{abadi2016deep,
   title={Deep learning with differential privacy},
