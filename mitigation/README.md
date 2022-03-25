@@ -1,10 +1,10 @@
 # User-level DP training
 
-The idea of the LDP is to perturb the local data using the mechanism M such that the data perturbation is guaranteed to protect from inference attacks.
+**The idea of the LDP is to perturb the local data using the mechanism M such that the data perturbation is guaranteed to protect from inference attacks. The UDP algorithm is shown below:**
 
-**The UDP algorithm is shown below:**
-
-![Alt text](../img/udp_algorithm.png?raw=true "UDP Federated Learning")
+<p align="center">
+<img src="../img/udp_algorithm.png" width="45%">
+<p>
 
 ## If you find our work useful, you should also cite (and learn) these works  
 
