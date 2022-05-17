@@ -133,3 +133,5 @@ The short answer is: the increased dropout makes the attack stronger in this att
   doi={10.21437/Interspeech.2021-1775}
 }
 ```
+
+**[Image credit: OpenMoji](https://openmoji.org/)**
