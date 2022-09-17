@@ -1,6 +1,8 @@
-*.pt
 *pycache*
 *dropout_08_lr_0005*
 *dropout_05*
 *local_epoch_5*
-*udp*
+*.pt*
+*pkl*
+*local_epoch_1_dropout_02_lr_0005_udp_30*
+archive/*
