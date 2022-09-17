@@ -97,6 +97,7 @@ if __name__ == '__main__':
     parser.add_argument('--pred', default='emotion')
     parser.add_argument('--leak_layer', default='full')
     parser.add_argument('--dropout', default=0.2)
+    parser.add_argument('--attack_dropout', default=0.2)
     parser.add_argument('--privacy_budget', default=None)
     parser.add_argument('--save_dir', default='/media/data/projects/speech-privacy')
     args = parser.parse_args()
@@ -108,9 +109,9 @@ if __name__ == '__main__':
     model_setting_str = 'local_epoch_'+str(args.local_epochs) if args.model_type == 'fed_avg' else 'local_epoch_1'
     model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
     model_setting_str += '_lr_' + str(args.learning_rate)[2:]
-    if args.privacy_budget is not None: model_setting_str += '_udp_' + str(args.privacy_budget)
+    # if args.privacy_budget is not None: model_setting_str += '_udp_' + str(args.privacy_budget)
 
-    torch.cuda.empty_cache() 
+    torch.cuda.empty_cache()
     torch.multiprocessing.set_sharing_strategy('file_system')
     
     # 1. normalization tmp computations
@@ -126,10 +127,10 @@ if __name__ == '__main__':
 
     # 1.1 read all data and compute the tmp variables
     shadow_training_sample_size, shadow_data_dict = 0, {}
-    print('reading file %s' % str(Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str)))
+    print('reading file %s' % str(Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str)))
     for shadow_idx in range(5):
         for epoch in range(int(args.num_epochs)):
-            adv_federated_model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
+            adv_federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.adv_dataset, model_setting_str, 'fold'+str(int(shadow_idx+1)))
             file_str = str(adv_federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
             # if shadow_idx == 0 and epoch < 10:
             if epoch % 20 == 0: 
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     # 2. train model to infer gender
     # 2.1 define model
     train_key_list, validate_key_list = train_test_split(list(shadow_data_dict.keys()), test_size=0.2, random_state=0)
-    model = attack_model(args.leak_layer, args.feature_type)
+    model = attack_model(args.leak_layer, args.feature_type, float(args.attack_dropout))
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=float(args.model_learning_rate), weight_decay=1e-04, betas=(0.9, 0.98), eps=1e-9)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.2, verbose=True, min_lr=1e-6)
@@ -171,18 +172,40 @@ if __name__ == '__main__':
     validation_loader =DataLoader(dataset_valid, batch_size=20, num_workers=0, shuffle=False)
     
     # 2.3 initialize the early_stopping object
-    early_stopping = EarlyStopping(patience=10, verbose=True)
+    early_stopping = EarlyStopping(patience=6, verbose=True)
     loss = nn.NLLLoss().to(device)
     
     # 2.4 log saving path
-    attack_model_result_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str)
+    attack_model_result_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', 'attack', args.leak_layer, args.model_type, args.feature_type, model_setting_str+'_attack_dropout_' + str(args.attack_dropout).replace('.', ''))
     log_path = Path.joinpath(attack_model_result_path, 'log_private_' + str(args.dataset))
     if log_path.exists(): shutil.rmtree(log_path)
     Path.mkdir(log_path, parents=True, exist_ok=True)
     
+    for fold_idx in range(1):
+        test_data_dict = {}
+        for epoch in range(int(args.num_epochs)):
+            row_df = pd.DataFrame(index=['fold'+str(int(fold_idx+1))])
+            
+            # Model related
+            federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
+            weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
+
+            with open(weight_file_str, 'rb') as f:
+                test_gradient_dict = pickle.load(f)
+            for speaker_id in test_gradient_dict:
+                data_key = str(shadow_idx)+'_'+str(epoch)+'_'+speaker_id
+                gradients = test_gradient_dict[speaker_id]['gradient']
+                test_data_dict[data_key] = {}
+                test_data_dict[data_key]['gender'] = test_gradient_dict[speaker_id]['gender']
+                test_data_dict[data_key][weight_name] = gradients[weight_idx]
+                test_data_dict[data_key][bias_name] = gradients[bias_idx]
+
+        dataset_test = WeightDataGenerator(list(test_data_dict.keys()), test_data_dict)
+        test_loader = DataLoader(dataset_test, batch_size=20, num_workers=0, shuffle=False)
+        
     # 2.5 training attack model
     result_dict, best_val_dict = {}, {}
-    for epoch in range(40):
+    for epoch in range(50):
         # perform the training, validate, and test
         train_result = run_one_epoch(model, train_loader, optimizer, scheduler, loss, epoch, mode='train')
         validate_result = run_one_epoch(model, validation_loader, optimizer, scheduler, loss, epoch, mode='validate')
@@ -204,6 +227,9 @@ if __name__ == '__main__':
         # print(final_acc, best_val_acc, best_epoch)
         print('best epoch %d, best final acc %.2f, best final uar %.2f' % (best_epoch, best_val_dict['acc']*100, best_val_dict['uar']*100))
         print(best_val_dict['conf'])
+        test_result = run_one_epoch(model, test_loader, optimizer, scheduler, loss, best_epoch, mode='test')
+        print('test epoch %d, best final acc %.2f, best final uar %.2f' % (epoch, test_result['acc']*100, test_result['uar']*100))
+        print(test_result['conf'])
         
         if early_stopping.early_stop and epoch > 30:
             print("Early stopping")
@@ -221,7 +247,7 @@ if __name__ == '__main__':
             row_df = pd.DataFrame(index=['fold'+str(int(fold_idx+1))])
             
             # Model related
-            federated_model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
+            federated_model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, 'fold'+str(int(fold_idx+1)))
             weight_file_str = str(federated_model_result_path.joinpath('gradient_hist_'+str(epoch)+'.pkl'))
 
             with open(weight_file_str, 'rb') as f:

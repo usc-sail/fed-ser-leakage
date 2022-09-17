@@ -87,6 +87,7 @@ def result_summary(step_outputs, mode, epoch):
     result_dict = {}
     acc_score = accuracy_score(y_true, y_pred)
     rec_score = recall_score(y_true, y_pred, average='macro')
+    
     confusion_matrix_arr = np.round(confusion_matrix(y_true, y_pred, normalize='true')*100, decimals=2)
     
     result_dict['acc'] = acc_score

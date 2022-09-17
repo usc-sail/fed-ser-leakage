@@ -68,7 +68,7 @@ class local_trainer(object):
         self.model_type = model_type
         self.dataloader = dataloader
         
-    def update_weights(self, model):
+    def update_weights(self, model, clip=None):
         # Set mode to train model
         model.train()
         
@@ -135,3 +135,10 @@ class local_trainer(object):
         result_dict = result_summary(step_outputs)
         return result_dict
 
+def noise_add(noise_scale, w, device):
+    w_noise = copy.deepcopy(w)
+    for i in w.keys():
+        noise = np.random.normal(0, noise_scale, w[i].size())
+        noise = torch.from_numpy(noise).float().to(device)
+        w_noise[i] = w_noise[i] + noise
+    return w_noise

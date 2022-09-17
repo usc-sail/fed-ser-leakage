@@ -94,7 +94,7 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                 for idx, data_key in enumerate(speaker_data_key_list):
                     x[idx], y[idx] = train_dict[data_key]['data'], int(emo_dict[train_dict[data_key]['label']])
                     dataset_list.append(train_dict[data_key]['dataset'])
-                
+                np.random.seed(8)
                 idx_array = np.random.permutation(len(train_speaker_data_dict[speaker_id]))
                 perm_array = np.random.permutation(len(idx_array))
                 return_train_dict[speaker_id] = {}
@@ -114,6 +114,7 @@ def read_data_dict_by_client(dataset_list, fold_idx):
             for speaker_id in train_speaker_data_dict:
                 # in iemocap and msp-improv
                 # we spilit each speaker data into 10 parts in order to create more clients
+                np.random.seed(8)
                 idx_array = np.random.permutation(len(train_speaker_data_dict[speaker_id]))
                 speaker_data_key_list = train_speaker_data_dict[speaker_id]
                 split_array = np.array_split(idx_array, 10)
@@ -129,7 +130,7 @@ def read_data_dict_by_client(dataset_list, fold_idx):
                         dataset_list.append(train_dict[data_key]['dataset'])
                         # if speaker_id+'_'+str(split_idx) not in return_train_dict: return_train_dict[speaker_id+'_'+str(split_idx)] = {}
                         # return_train_dict[speaker_id+'_'+str(split_idx)][key] = train_dict[key].copy()
-                    
+                    np.random.seed(8)
                     perm_array = np.random.permutation(len(idxs_train))
                     return_train_dict[speaker_id+'_'+str(split_idx)] = {}
                     return_train_dict[speaker_id+'_'+str(split_idx)]['data'] = x[perm_array[:int(0.8*len(x))]].copy()
@@ -185,13 +186,17 @@ if __name__ == '__main__':
         model_setting_str = 'local_epoch_'+str(args.local_epochs) if args.model_type == 'fed_avg' else 'local_epoch_1'
         model_setting_str += '_dropout_' + str(args.dropout).replace('.', '')
         model_setting_str += '_lr_' + str(args.learning_rate)[2:]
-        # model_setting_str += '_local_dp_' + str(args.local_dp).replace('.', '')
         
         # Read the data per speaker
         train_speaker_dict, val_speaker_dict, test_speaker_dict = read_data_dict_by_client(dataset_list, fold_idx)
         num_of_speakers, speaker_list = len(train_speaker_dict), list(set(train_speaker_dict.keys()))
         
         # Define the model
+        seed_everything(8, workers=True)
+        torch.manual_seed(8)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        
         global_model = dnn_classifier(pred='emotion', input_spec=feature_len_dict[args.feature_type], dropout=float(args.dropout))
         global_model = global_model.to(device)
         global_weights = global_model.state_dict()
@@ -199,9 +204,23 @@ if __name__ == '__main__':
         # copy weights
         criterion = nn.NLLLoss().to(device)
         
+        idxs_speakers_epoch = list()
+        for epoch in range(int(args.num_epochs)):
+            # we choose 10% of clients in training
+            np.random.seed(epoch)
+            idxs_speakers_epoch.append(np.random.choice(range(num_of_speakers), int(0.1 * num_of_speakers), replace=False))
+            
         # log saving path
-        # model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
-        model_result_path = Path(args.save_dir).joinpath('tmp_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
+        seed_everything(8, workers=True)
+        torch.manual_seed(8)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        dataloader_dict = dict()
+        for speaker_id in speaker_list:
+            dataset_train = DatasetGenerator(train_speaker_dict[speaker_id])
+            dataloader_dict[speaker_id] = DataLoader(dataset_train, batch_size=20, num_workers=0, shuffle=True)
+        
+        model_result_path = Path(args.save_dir).joinpath('federated_model_params', args.model_type, args.pred, args.feature_type, args.dataset, model_setting_str, save_row_str)
         model_result_csv_path = Path(os.path.realpath(__file__)).parents[1].joinpath('results', args.pred, args.model_type, args.feature_type, model_setting_str)
         Path.mkdir(model_result_path, parents=True, exist_ok=True)
         Path.mkdir(model_result_csv_path, parents=True, exist_ok=True)
@@ -218,7 +237,7 @@ if __name__ == '__main__':
         result_dict, best_score = {}, 0
         for epoch in range(int(args.num_epochs)):
             # we choose 10% of clients in training
-            idxs_speakers = np.random.choice(range(num_of_speakers), int(0.1 * num_of_speakers), replace=False)
+            idxs_speakers = idxs_speakers_epoch[epoch]
             
             # define list varibles that saves the weights, loss, num_sample, etc.
             local_updates, local_losses, local_num_sampels = [], [], []
@@ -229,10 +248,7 @@ if __name__ == '__main__':
                 speaker_id = speaker_list[idx]
                 
                 # 1.1 Local training
-                dataset_train = DatasetGenerator(train_speaker_dict[speaker_id])
-                train_dataloaders = DataLoader(dataset_train, batch_size=20, num_workers=0, shuffle=True)
-                trainer = local_trainer(args, device, criterion, args.model_type, train_dataloaders)
-           
+                trainer = local_trainer(args, device, criterion, args.model_type, dataloader_dict[speaker_id])
                 # read shared updates: parameters in fed_avg and gradients for fed_sgd
                 if args.model_type == 'fed_avg':
                     local_update, train_result = trainer.update_weights(model=copy.deepcopy(global_model))
@@ -329,7 +345,7 @@ if __name__ == '__main__':
             validate_result['loss'] = np.mean(validation_loss)
 
             print('| Global Round validation : {} | \tacc: {:.2f}% | \tuar: {:.2f}% | \tLoss: {:.6f}\n'.format(
-                        epoch, weighted_acc*100, weighted_rec*100, train_result['loss']))
+                        epoch, weighted_acc*100, weighted_rec*100, validate_result['loss']))
             
             # 4. Perform the test on holdout set
             trainer = local_trainer(args, device, criterion, args.model_type, test_dataloaders)
@@ -343,12 +359,12 @@ if __name__ == '__main__':
             result_dict[epoch]['test'] = test_result
             
             if epoch == 0: best_epoch, best_val_dict, best_test_dict = 0, validate_result, test_result
-            if validate_result['uar'] > best_val_dict['uar'] and epoch > 150:
+            if validate_result['uar'] > best_val_dict['uar'] and epoch > 100:
                 # Save best model and training history
                 best_epoch, best_val_dict, best_test_dict = epoch, validate_result, test_result
                 torch.save(deepcopy(global_model.state_dict()), str(model_result_path.joinpath('model.pt')))
             
-            if epoch > 150:
+            if epoch > 100:
                 # log results
                 print('best epoch %d, best final acc %.2f, best val acc %.2f' % (best_epoch, best_test_dict['acc']*100, best_val_dict['acc']*100))
                 print('best epoch %d, best final rec %.2f, best val rec %.2f' % (best_epoch, best_test_dict['uar']*100, best_val_dict['uar']*100))

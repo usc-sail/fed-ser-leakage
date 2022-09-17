@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'model'))
 sys.path.append(os.path.join(os.path.abspath(os.path.curdir), '..', 'utils'))
 
 def pretrained_feature(audio):
-    
+    model.eval()
     save_feature = []
     if args.feature_type == 'wav2vec':
         with torch.inference_mode(): 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     elif args.feature_type == args.feature_type:
         model = getattr(hub, args.feature_type)()
     model = model.to(device)
-  
+    
     # msp-improv
     if args.dataset == 'msp-improv':
         # data root folder
